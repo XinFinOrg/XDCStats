@@ -1,0 +1,486 @@
+openapi: 3.0.3
+
+info:
+  title: XDCStats Backend API
+  description: |
+    REST API for the XDC Network Statistics service.
+
+    All endpoints are prefixed with `/v2`.
+
+    **Authentication:** Admin endpoints require an `x-api-secret` header matching
+    the `ADMIN_SECRET` environment variable. Omitting or providing a wrong value
+    returns `401 Unauthorized`.
+
+    **Forensics endpoints** are only active when the server is started with
+    `ENABLE_FORENSICS=true`.
+  version: 1.0.0
+  contact:
+    email: liam@xinfin.org
+  license:
+    name: LGPL-3.0
+    url: https://www.gnu.org/licenses/lgpl-3.0.html
+
+servers:
+  - url: http://localhost:2000
+    description: Local development
+  - url: https://stats1.xinfin.network
+    description: Production
+
+tags:
+  - name: Health
+    description: Liveness and readiness probes
+  - name: Nodes
+    description: Connected node information (admin-only)
+  - name: Snapshot
+    description: Public read-only snapshot
+  - name: Forensics
+    description: Consensus fault forensics (requires ENABLE_FORENSICS=true)
+
+# ── Security ──────────────────────────────────────────────────────────────────
+
+components:
+  securitySchemes:
+    AdminSecret:
+      type: apiKey
+      in: header
+      name: x-api-secret
+      description: Value of the `ADMIN_SECRET` environment variable.
+
+  # ── Reusable schemas ────────────────────────────────────────────────────────
+
+  schemas:
+
+    NodeInfo:
+      type: object
+      properties:
+        name:
+          type: string
+          description: Human-readable node name
+          example: node-mainnet-01
+        node:
+          type: string
+          description: Client identifier string (e.g. Geth version)
+          example: Geth/v1.9.7-stable/linux-amd64/go1.13.12
+        coinbase:
+          type: string
+          description: Node coinbase (validator) address
+          example: "0xabc123..."
+        ip:
+          type: string
+          description: Node IP address
+          example: "1.2.3.4"
+
+    NodeStats:
+      type: object
+      properties:
+        active:
+          type: boolean
+          description: Whether the node is currently connected
+        mining:
+          type: boolean
+          description: Whether the node is mining/validating
+        peers:
+          type: integer
+          description: Number of peer connections
+          example: 12
+        pending:
+          type: integer
+          description: Number of pending transactions
+          example: 3
+
+    NodeSummary:
+      type: object
+      properties:
+        info:
+          $ref: '#/components/schemas/NodeInfo'
+        stats:
+          $ref: '#/components/schemas/NodeStats'
+
+    CoinbaseEntry:
+      type: object
+      properties:
+        name:
+          type: string
+          example: node-mainnet-01
+        coinbase:
+          type: string
+          example: "0xabc123..."
+
+    BlockInfo:
+      type: object
+      properties:
+        blockNumber:
+          type: string
+          description: Block number as a decimal string
+          example: "12345678"
+        blockHash:
+          type: string
+          description: Block hash (0x-prefixed hex)
+          example: "0xabcdef1234567890..."
+
+    ForensicsEventSummary:
+      type: object
+      description: Summarised forensics event record
+      properties:
+        _id:
+          type: string
+          description: MongoDB ObjectId
+          example: "64a1b2c3d4e5f6a7b8c9d0e1"
+        blockNumber:
+          type: integer
+          example: 12345678
+        smartContractAddress:
+          type: string
+          example: "0xdef456..."
+        createdAt:
+          type: string
+          format: date-time
+
+    ForensicsDetail:
+      allOf:
+        - $ref: '#/components/schemas/ForensicsEventSummary'
+        - type: object
+          description: Full forensics report including raw proof data
+          properties:
+            forensicsProof:
+              type: object
+              description: Raw proof data submitted by the reporting node
+
+    Error:
+      type: object
+      properties:
+        message:
+          type: string
+          example: Unauthorized
+
+# ── Paths ────────────────────────────────────────────────────────────────────
+
+paths:
+
+  # ── Health ──────────────────────────────────────────────────────────────────
+
+  /v2/health:
+    get:
+      tags: [Health]
+      summary: Liveness check
+      description: Returns `200 OK` with body `OK`. Use as a Docker/load-balancer health probe.
+      operationId: healthCheck
+      responses:
+        '200':
+          description: Service is up
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: OK
+
+  # ── Snapshot ─────────────────────────────────────────────────────────────────
+
+  /v2/snapshot:
+    get:
+      tags: [Snapshot]
+      summary: Current node and chart snapshot
+      description: |
+        Public endpoint. Returns a consistent point-in-time snapshot of all
+        known nodes and the latest aggregated chart data.
+      operationId: getSnapshot
+      responses:
+        '200':
+          description: Snapshot retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  nodes:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/NodeSummary'
+                  charts:
+                    type: object
+                    description: Aggregated chart data (block times, propagation, uncle rates, etc.)
+              example:
+                nodes:
+                  - info:
+                      name: node-mainnet-01
+                      node: Geth/v1.9.7-stable
+                      coinbase: "0xabc..."
+                      ip: "1.2.3.4"
+                    stats:
+                      active: true
+                      mining: true
+                      peers: 12
+                      pending: 0
+                charts:
+                  avgBlocktime: 2.1
+                  avgNetHashrate: 0
+                  bestBlock: 12345678
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  # ── Nodes (admin) ─────────────────────────────────────────────────────────────
+
+  /v2/nodes_info:
+    get:
+      tags: [Nodes]
+      summary: Basic info for all connected nodes
+      description: Returns condensed `info` + `stats` for every currently connected node. Requires admin secret.
+      operationId: getNodesInfo
+      security:
+        - AdminSecret: []
+      responses:
+        '200':
+          description: Node list retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  count:
+                    type: integer
+                    description: Total number of nodes
+                    example: 42
+                  nodes:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/NodeSummary'
+        '401':
+          description: Missing or invalid x-api-secret
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /v2/nodes_info_verbose:
+    get:
+      tags: [Nodes]
+      summary: Full node objects for all connected nodes
+      description: Returns the complete internal node object for every connected node. Requires admin secret.
+      operationId: getNodesInfoVerbose
+      security:
+        - AdminSecret: []
+      responses:
+        '200':
+          description: Verbose node list retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  count:
+                    type: integer
+                    example: 42
+                  nodes:
+                    type: array
+                    description: Full internal node objects
+                    items:
+                      type: object
+        '401':
+          description: Missing or invalid x-api-secret
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /v2/coinbase_info:
+    get:
+      tags: [Nodes]
+      summary: Coinbase addresses for all connected nodes
+      description: Returns only `name` and `coinbase` for every connected node. Requires admin secret.
+      operationId: getNodesCoinbase
+      security:
+        - AdminSecret: []
+      responses:
+        '200':
+          description: Coinbase list retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  count:
+                    type: integer
+                    example: 42
+                  nodes:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/CoinbaseEntry'
+        '401':
+          description: Missing or invalid x-api-secret
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  # ── Forensics ─────────────────────────────────────────────────────────────────
+
+  /v2/forensics/masternode:
+    get:
+      tags: [Forensics]
+      summary: Masternode details by address
+      description: |
+        Fetches masternode details from the masternode API (`MASTERNODE_URL`).
+        Requires `ENABLE_FORENSICS=true`.
+      operationId: getMasterNodeDetails
+      parameters:
+        - name: address
+          in: query
+          required: true
+          description: Masternode wallet address
+          schema:
+            type: string
+            example: "0xabc123..."
+      responses:
+        '200':
+          description: Masternode details
+          content:
+            application/json:
+              schema:
+                type: object
+                description: Masternode detail object (structure defined by the masternode API)
+        '500':
+          description: Internal server error or masternode API unreachable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /v2/forensics/batch/load:
+    get:
+      tags: [Forensics]
+      summary: Load forensics event summaries
+      description: |
+        Returns summarised forensics events optionally filtered by a date range.
+        Requires `ENABLE_FORENSICS=true`.
+      operationId: getForensicsReports
+      parameters:
+        - name: range
+          in: query
+          required: false
+          description: |
+            `"all"` — return all records, or an integer number of days to look
+            back (default: `7`).
+          schema:
+            type: string
+            example: "7"
+      responses:
+        '200':
+          description: Forensics event summaries
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ForensicsEventSummary'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /v2/forensics/load/detail:
+    get:
+      tags: [Forensics]
+      summary: Detailed forensics report by ID
+      description: |
+        Returns the full forensics report including raw proof data for a given
+        MongoDB ObjectId. Requires `ENABLE_FORENSICS=true`.
+      operationId: getDetailedForensicsReport
+      parameters:
+        - name: id
+          in: query
+          required: true
+          description: MongoDB ObjectId of the forensics report
+          schema:
+            type: string
+            example: "64a1b2c3d4e5f6a7b8c9d0e1"
+      responses:
+        '200':
+          description: Forensics report detail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ForensicsDetail'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /v2/forensics/load/latest:
+    get:
+      tags: [Forensics]
+      summary: Latest forensics reports since a cursor ID
+      description: |
+        Returns forensics events newer than the provided `id`. If `id` is
+        omitted, returns all records. Also returns the current best block and
+        highest committed block info. Requires `ENABLE_FORENSICS=true`.
+      operationId: getLatestForensicsReport
+      parameters:
+        - name: id
+          in: query
+          required: false
+          description: |
+            Last known forensics report ObjectId used as a cursor. Only reports
+            newer than this ID are returned.
+          schema:
+            type: string
+            example: "64a1b2c3d4e5f6a7b8c9d0e1"
+      responses:
+        '200':
+          description: Latest forensics reports and block info
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  forensics:
+                    type: array
+                    description: New forensics event summaries (empty array if none)
+                    items:
+                      $ref: '#/components/schemas/ForensicsEventSummary'
+                  latestBlockInfo:
+                    $ref: '#/components/schemas/BlockInfo'
+                  highestCommittedBlockInfo:
+                    $ref: '#/components/schemas/BlockInfo'
+              example:
+                forensics: []
+                latestBlockInfo:
+                  blockNumber: "12345678"
+                  blockHash: "0xabcdef..."
+                highestCommittedBlockInfo:
+                  blockNumber: "12345677"
+                  blockHash: "0xfedcba..."
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'

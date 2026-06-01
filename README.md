@@ -1,49 +1,85 @@
-XDC Network Stats
-============
+# XDCStats
 
-This is a visual interface for tracking XinFin Network status. It uses WebSockets to receive stats from running nodes and output them through an angular interface.
+Monorepo for XDC Network Statistics — a backend data collection service and a React dashboard for visualising live node activity on the XDC network.
 
-## Prerequisite
-* node
-* npm
-* MongoDB(Only needed if to run Forensics)
+## Repository Structure
 
-## Installation
-Make sure you have node.js and npm installed.
+```
+XDCStats/
+├── backend/    # Express/Node.js API, WebSocket server, forensics
+└── frontend/   # React + TypeScript + Vite dashboard
+```
 
-Clone the repository and install the dependencies
+## Quick Start
+
+### Backend
 
 ```bash
-git clone https://github.com/XinFinOrg/XDCStats
-cd XDCStats
+cd backend
+cp .env_sample .env   # fill in the required environment variables
 npm install
-sudo npm install -g grunt-cli
-```
-
-## Build the resources
-NetStats features two versions: the full version and the lite version. In order to build the static files you have to run grunt tasks which will generate dist or dist-lite directories containing the js and css files, fonts and images.
-
-
-To build the full version run
-```bash
-grunt
-```
-
-## Run in server
-1. Copy paste `.env_sample` and rename to `.env`. Set the relevant environment variables. 
-2. Start the docker to run the application: `npm run start:docker`
-
-### Run with Forensics
-1. In the `.env`, To enable Forensics, put `ENABLE_FORENSICS=true`
-2. Set up mongoDB
-  - Download and set up mongoDB: https://www.mongodb.com/docs/manual/tutorial/install-mongodb-on-ubuntu/#install-mongodb-community-edition
-  - Set monggoDB url to `MONGODBURL` in .env , default to `localhost:27017`
-3. Start the docker to run the application: `npm run start:docker`
-4. Run the Frontend UI. Please refer to the [Forensics-UI](https://github.com/XinFinOrg/XDC_Forensics)
-
-## Run in local
-
-```bash
 npm run dev
 ```
-see the interface at http://localhost:2000
+
+Runs on **http://localhost:2000**. See [backend/README.md](backend/README.md) for full environment variable reference and MongoDB/Forensics setup.
+
+### Frontend
+
+```bash
+cd frontend
+cp .env.example .env  # set VITE_API_URL to your backend address
+npm install
+npm run dev
+```
+
+Runs on **http://localhost:32001**.
+
+## Backend
+
+Node.js / Express server that connects to XDC network nodes via WebSocket, aggregates statistics, and exposes a REST + WebSocket API.
+
+| Script | Description |
+|--------|-------------|
+| `npm run dev` | Start with nodemon + local MongoDB |
+| `npm start` | Production server |
+| `npm run start:docker` | Start via Docker Compose |
+| `npm run start:pm2` | Start with PM2 |
+| `npm run alert` | Start alert service with PM2 |
+
+**Prerequisites:** Node 16, MongoDB (only required for Forensics).
+
+### Docker
+
+```bash
+cd backend
+npm run start:docker
+```
+
+The `docker-compose.yml` spins up both the app and a MongoDB instance.
+
+### Forensics
+
+Set `ENABLE_FORENSICS=true` in `backend/.env` and point `MONGODBURL` at a running MongoDB instance before starting.
+
+## Frontend
+
+React 18 + TypeScript dashboard built with Vite, styled with Tailwind CSS, and visualised with D3 and Recharts.
+
+| Script | Description |
+|--------|-------------|
+| `npm run dev` | Start Vite dev server |
+| `npm run build` | Production build to `dist/` |
+| `npm run preview` | Preview production build |
+| `npm run test` | Run Vitest test suite |
+| `npm run test:coverage` | Coverage report |
+| `npm run lint` | ESLint |
+
+**Environment variable:**
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `VITE_API_URL` | Backend base URL | `https://stats1.xinfin.network` |
+
+## License
+
+LGPL-3.0 — see [LICENSE](LICENSE).

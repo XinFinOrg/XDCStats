@@ -1,0 +1,8 @@
+node_modules
+npm-debug.log
+.env
+ws_secret.json
+stats.json
+.git
+.gitignore
+README.md
