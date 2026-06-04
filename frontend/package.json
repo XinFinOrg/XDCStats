@@ -1,0 +1,46 @@
+{
+  "name": "xdcstats-dashboard",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --mode devnet",
+    "dev:testnet": "vite --mode testnet",
+    "dev:mainnet": "vite --mode mainnet",
+    "build": "tsc && vite build --mode mainnet",
+    "build:testnet": "tsc && vite build --mode testnet",
+    "build:devnet": "tsc && vite build --mode devnet",
+    "preview": "vite preview",
+    "lint": "eslint src --ext ts,tsx",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage"
+  },
+  "dependencies": {
+    "d3": "^7.9.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-simple-maps": "^3.0.0",
+    "recharts": "^2.13.0"
+  },
+  "devDependencies": {
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
+    "@testing-library/user-event": "^14.6.1",
+    "@types/d3": "^7.4.3",
+    "@types/react": "^18.3.3",
+    "@types/react-dom": "^18.3.0",
+    "@types/react-simple-maps": "^3.0.6",
+    "@vitejs/plugin-react": "^4.3.1",
+    "@vitest/coverage-v8": "^4.1.7",
+    "autoprefixer": "^10.4.20",
+    "eslint": "^8.57.0",
+    "happy-dom": "^20.9.0",
+    "jsdom": "^29.1.1",
+    "postcss": "^8.4.41",
+    "tailwindcss": "^3.4.10",
+    "typescript": "^5.5.3",
+    "vite": "^5.4.1",
+    "vitest": "^4.1.7"
+  }
+}
