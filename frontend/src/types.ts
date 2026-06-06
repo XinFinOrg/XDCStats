@@ -1,7 +1,6 @@
 export interface NodeInfo {
   name: string;
   node: string; // client type string e.g. "XDCChain/v1.0/linux/go1.16"
-  coinbase: string;
   net: string;
   protocol: string;
   port: number;
@@ -14,27 +13,18 @@ export interface NodeInfo {
 
 export interface NodeBlock {
   number: number;
-  hash: string;
   arrived: number; // timestamp ms
-  received: number;
   propagation: number;
   gasLimit: number;
-  transactions: number;
-  uncles: number;
-  miner: string;
-  difficulty: string;
 }
 
 export interface NodeStats {
   active: boolean;
-  mining: boolean;
-  hashrate: number;
   peers: number;
   gasPrice: string; // big number string
   uptime: number;
   pending: number;
   latency: number;
-  propagationAvg: number;
   block: NodeBlock;
 }
 
@@ -68,26 +58,14 @@ export interface PropagationBin {
 }
 
 export interface ChartsData {
-  avgBlocktime: number;
   avgTransactionRate: number;
-  avgHashrate: number;
-  gasLimit: number[];
   blocktime: number[];
-  difficulty: number[];
+  transactions: number[];
+  gasSpending: number[];
   propagation: {
     histogram: PropagationBin[];
     avg: number;
   };
-  uncleCount: number[];
-  transactions: number[];
-  gasSpending: number[];
-  miners: MinerEntry[];
-}
-
-export interface MinerEntry {
-  miner: string;
-  name: string | false;
-  blocks: number;
 }
 
 export interface MapNode {

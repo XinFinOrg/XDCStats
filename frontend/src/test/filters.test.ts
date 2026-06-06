@@ -31,25 +31,16 @@ import type { Node, NodeStats } from '../types';
 
 const makeStats = (overrides: Partial<NodeStats> = {}): NodeStats => ({
   active: true,
-  mining: false,
-  hashrate: 0,
   peers: 5,
   gasPrice: '1000000000',
   uptime: 99,
   pending: 0,
   latency: 50,
-  propagationAvg: 200,
   block: {
     number: 100,
-    hash: '0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890',
     arrived: Date.now() - 5000,
-    received: Date.now() - 5000,
     propagation: 250,
     gasLimit: 21000000,
-    transactions: 0,
-    uncles: 0,
-    miner: '0x0000000000000000000000000000000000000000',
-    difficulty: '100000',
   },
   ...overrides,
 });
@@ -59,7 +50,6 @@ const makeNode = (overrides: Partial<Node> = {}): Node => ({
   info: {
     name: 'TestNode',
     node: 'XDCChain/v1.8.0/linux/go1.16',
-    coinbase: '0x0',
     net: '50',
     protocol: 'eth/63',
     port: 30303,

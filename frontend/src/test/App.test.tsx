@@ -19,17 +19,11 @@ vi.mock('../hooks/usePolling', () => ({
 // ─── Fixtures ─────────────────────────────────────────────────────────────────
 
 const emptyCharts: ChartsData = {
-  avgBlocktime: 0,
   avgTransactionRate: 0,
-  avgHashrate: 0,
-  gasLimit: [],
   blocktime: [],
-  difficulty: [],
-  propagation: { histogram: [], avg: 0 },
-  uncleCount: [],
   transactions: [],
   gasSpending: [],
-  miners: [],
+  propagation: { histogram: [], avg: 0 },
 };
 
 const makeNodeData = (id: string, blockNumber = 100, overrides: Partial<Node['stats']> = {}): Node => ({
@@ -37,7 +31,6 @@ const makeNodeData = (id: string, blockNumber = 100, overrides: Partial<Node['st
   info: {
     name: `Node-${id}`,
     node: 'XDCChain/v1.8.0/linux/go1.16',
-    coinbase: '0x0',
     net: '50',
     protocol: 'eth/63',
     port: 30303,
@@ -49,25 +42,16 @@ const makeNodeData = (id: string, blockNumber = 100, overrides: Partial<Node['st
   },
   stats: {
     active: true,
-    mining: false,
-    hashrate: 0,
     peers: 5,
     gasPrice: '1000000000',
     uptime: 95,
     pending: 0,
     latency: 50,
-    propagationAvg: 200,
     block: {
       number: blockNumber,
-      hash: '0x' + 'a'.repeat(64),
       arrived: Date.now() - 5000,
-      received: Date.now() - 5000,
       propagation: 250,
       gasLimit: 21_000_000,
-      transactions: 0,
-      uncles: 0,
-      miner: '0x0',
-      difficulty: '100000',
     },
     ...overrides,
   },
@@ -192,17 +176,11 @@ describe('App', () => {
   it('updates avg block time from charts in snapshot', async () => {
     render(<App />);
     const charts: ChartsData = {
-      avgBlocktime: 4.5,
       avgTransactionRate: 10,
-      avgHashrate: 0,
-      gasLimit: Array(40).fill(21_000_000),
       blocktime: Array(40).fill(4.5),
-      difficulty: Array(40).fill(100000),
       propagation: { histogram: [], avg: 300 },
-      uncleCount: Array(40).fill(0),
       transactions: Array(40).fill(10),
       gasSpending: Array(40).fill(1000),
-      miners: [],
     };
     act(() => { capturedOnSnapshot?.([], charts); });
 

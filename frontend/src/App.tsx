@@ -146,7 +146,6 @@ const App: React.FC = () => {
       const initialized: Node[] = (rawNodes as Node[]).map((node) => {
         const n: Node = {
           ...node,
-          stats: { ...node.stats, hashrate: node.stats.hashrate ?? 0 },
           history: node.history ?? Array(40).fill(-1),
           pinned: currentPinned.includes(node.id),
         };

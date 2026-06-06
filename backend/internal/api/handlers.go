@@ -7,8 +7,26 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/XinFinOrg/XDCStats/backend/internal/collection"
+	"github.com/XinFinOrg/XDCStats/backend/internal/history"
 	"github.com/XinFinOrg/XDCStats/backend/internal/node"
 )
+
+// snapshotPropagBin is PropagBin without the cumulative field the frontend doesn't use.
+type snapshotPropagBin struct {
+	X          float64 `json:"x"`
+	Dx         float64 `json:"dx"`
+	Y          float64 `json:"y"`
+	Frequency  int     `json:"frequency"`
+	CumPercent float64 `json:"cumpercent"`
+}
+
+func toSnapshotPropagBins(bins []history.PropagBin) []snapshotPropagBin {
+	out := make([]snapshotPropagBin, len(bins))
+	for i, b := range bins {
+		out[i] = snapshotPropagBin{X: b.X, Dx: b.Dx, Y: b.Y, Frequency: b.Frequency, CumPercent: b.CumPercent}
+	}
+	return out
+}
 
 type Handler struct {
 	nodes       *collection.Collection
@@ -32,29 +50,19 @@ func (h *Handler) Health(c *gin.Context) {
 // (transactions and uncles as counts, not arrays).
 type snapshotBlock struct {
 	Number      interface{} `json:"number"`
-	Hash        string      `json:"hash"`
 	Arrived     int64       `json:"arrived"`
-	Received    int64       `json:"received"`
 	Propagation int64       `json:"propagation"`
 	GasLimit    interface{} `json:"gasLimit"`
-	Difficulty  interface{} `json:"difficulty"`
-	Miner       string      `json:"miner"`
-	Transactions int        `json:"transactions"`
-	Uncles       int        `json:"uncles"`
 }
 
 type snapshotStats struct {
-	Active         bool          `json:"active"`
-	Mining         bool          `json:"mining"`
-	Syncing        bool          `json:"syncing"`
-	Hashrate       interface{}   `json:"hashrate"`
-	Peers          int           `json:"peers"`
-	GasPrice       interface{}   `json:"gasPrice"`
-	Block          snapshotBlock `json:"block"`
-	PropagationAvg int64         `json:"propagationAvg"`
-	Uptime         float64       `json:"uptime"`
-	Latency        int64         `json:"latency"`
-	Pending        int           `json:"pending"`
+	Active   bool          `json:"active"`
+	Peers    int           `json:"peers"`
+	GasPrice interface{}   `json:"gasPrice"`
+	Block    snapshotBlock `json:"block"`
+	Uptime   float64       `json:"uptime"`
+	Latency  int64         `json:"latency"`
+	Pending  int           `json:"pending"`
 }
 
 type snapshotInfo struct {
@@ -96,27 +104,17 @@ func toSnapshotNode(n *node.Node) snapshotNode {
 		},
 		Geo: n.Geo,
 		Stats: snapshotStats{
-			Active:         n.Stats.Active,
-			Mining:         n.Stats.Mining,
-			Syncing:        n.Stats.Syncing,
-			Hashrate:       n.Stats.Hashrate,
-			Peers:          n.Stats.Peers,
-			GasPrice:       n.Stats.GasPrice,
-			PropagationAvg: n.Stats.PropagationAvg,
-			Uptime:         n.Stats.Uptime,
-			Latency:        n.Stats.Latency,
-			Pending:        n.Stats.Pending,
+			Active:   n.Stats.Active,
+			Peers:    n.Stats.Peers,
+			GasPrice: n.Stats.GasPrice,
+			Uptime:   n.Stats.Uptime,
+			Latency:  n.Stats.Latency,
+			Pending:  n.Stats.Pending,
 			Block: snapshotBlock{
-				Number:       b.Number,
-				Hash:         b.Hash,
-				Arrived:      b.Arrived,
-				Received:     b.Received,
-				Propagation:  b.Propagation,
-				GasLimit:     b.GasLimit,
-				Difficulty:   b.Difficulty,
-				Miner:        b.Miner,
-				Transactions: len(b.Transactions),
-				Uncles:       len(b.Uncles),
+				Number:      b.Number,
+				Arrived:     b.Arrived,
+				Propagation: b.Propagation,
+				GasLimit:    b.GasLimit,
 			},
 		},
 		History: n.History,
@@ -131,7 +129,19 @@ func (h *Handler) Snapshot(c *gin.Context) {
 		nodes[i] = toSnapshotNode(n)
 	}
 	charts := h.nodes.GetChartsData()
-	c.JSON(http.StatusOK, gin.H{"nodes": nodes, "charts": charts})
+	c.JSON(http.StatusOK, gin.H{
+		"nodes": nodes,
+		"charts": gin.H{
+			"blocktime":          charts.Blocktime,
+			"avgTransactionRate": charts.AvgTransactionRate,
+			"transactions":       charts.Transactions,
+			"gasSpending":        charts.GasSpending,
+			"propagation": gin.H{
+				"histogram": toSnapshotPropagBins(charts.Propagation.Histogram),
+				"avg":       charts.Propagation.Avg,
+			},
+		},
+	})
 }
 
 func (h *Handler) NodesInfo(c *gin.Context) {

@@ -1,13 +1,17 @@
 package main
 
 import (
+	"compress/gzip"
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -48,6 +52,7 @@ func main() {
 	r.Use(gin.Recovery())
 	r.Use(requestLogger())
 	r.Use(corsMiddleware())
+	r.Use(gzipMiddleware())
 
 	handler := api.NewHandler(nodes, cfg.AdminSecret)
 
@@ -133,6 +138,45 @@ func corsMiddleware() gin.HandlerFunc {
 			c.AbortWithStatus(http.StatusNoContent)
 			return
 		}
+		c.Next()
+	}
+}
+
+var gzipWriterPool = sync.Pool{
+	New: func() interface{} {
+		w, _ := gzip.NewWriterLevel(io.Discard, gzip.BestSpeed)
+		return w
+	},
+}
+
+type gzipResponseWriter struct {
+	gin.ResponseWriter
+	gz *gzip.Writer
+}
+
+func (g *gzipResponseWriter) Write(data []byte) (int, error) {
+	return g.gz.Write(data)
+}
+
+func (g *gzipResponseWriter) WriteString(s string) (int, error) {
+	return g.gz.Write([]byte(s))
+}
+
+func gzipMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if !strings.Contains(c.Request.Header.Get("Accept-Encoding"), "gzip") {
+			c.Next()
+			return
+		}
+		gz := gzipWriterPool.Get().(*gzip.Writer)
+		gz.Reset(c.Writer)
+		defer func() {
+			gz.Close()
+			gzipWriterPool.Put(gz)
+		}()
+		c.Header("Content-Encoding", "gzip")
+		c.Header("Vary", "Accept-Encoding")
+		c.Writer = &gzipResponseWriter{ResponseWriter: c.Writer, gz: gz}
 		c.Next()
 	}
 }
