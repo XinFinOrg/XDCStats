@@ -281,6 +281,11 @@ const NodesTable: React.FC<NodesTableProps> = ({ nodes, bestBlock, onPin }) => {
     setTooltip({ visible: true, x: e.clientX + 14, y: e.clientY - 10, html: geoTooltipContent(node) });
   }, []);
 
+  const showHeaderTooltip = useCallback((e: React.MouseEvent, text: string) => {
+    if (tooltipTimeout.current) clearTimeout(tooltipTimeout.current);
+    setTooltip({ visible: true, x: e.clientX + 14, y: e.clientY - 10, html: `<div style="max-width:220px;white-space:normal">${text}</div>` });
+  }, []);
+
   const hideTooltip = useCallback(() => {
     tooltipTimeout.current = setTimeout(() => {
       setTooltip((t) => ({ ...t, visible: false }));
@@ -351,49 +356,80 @@ const NodesTable: React.FC<NodesTableProps> = ({ nodes, bestBlock, onPin }) => {
               <th
                 className="px-3 py-2 text-left cursor-pointer"
                 onClick={() => handleSort(['-pinned'])}
+                onMouseEnter={(e) => showHeaderTooltip(e, 'Pin a node to keep it at the top of the list.')}
+                onMouseLeave={hideTooltip}
+                onMouseMove={moveTooltip}
               >
                 <SortIcon preds={['-pinned']} />
               </th>
               <th
                 className="px-3 py-2 text-left cursor-pointer"
                 onClick={() => handleSort(['info.name'])}
+                onMouseEnter={(e) => showHeaderTooltip(e, 'The name reported by the node when it connected.')}
+                onMouseLeave={hideTooltip}
+                onMouseMove={moveTooltip}
               >
                 Node Name <SortIcon preds={['info.name']} />
               </th>
               <th
                 className="px-3 py-2 text-left cursor-pointer"
                 onClick={() => handleSort(['info.node'])}
+                onMouseEnter={(e) => showHeaderTooltip(e, 'Client software and version string reported by the node (e.g. XDCChain/v2.0/linux/go1.21).')}
+                onMouseLeave={hideTooltip}
+                onMouseMove={moveTooltip}
               >
                 Type <SortIcon preds={['info.node']} />
               </th>
               <th
                 className="px-3 py-2 text-right cursor-pointer"
                 onClick={() => handleSort(['stats.latency'])}
+                onMouseEnter={(e) => showHeaderTooltip(e, 'Round-trip time between this server and the node, measured via WebSocket ping every 30 seconds.')}
+                onMouseLeave={hideTooltip}
+                onMouseMove={moveTooltip}
               >
                 Latency <SortIcon preds={['stats.latency']} />
               </th>
               <th
                 className="px-3 py-2 text-right cursor-pointer"
                 onClick={() => handleSort(['-stats.peers'])}
+                onMouseEnter={(e) => showHeaderTooltip(e, 'Number of other nodes this node is currently connected to in the P2P network.')}
+                onMouseLeave={hideTooltip}
+                onMouseMove={moveTooltip}
               >
                 Peers <SortIcon preds={['-stats.peers']} />
               </th>
               <th
                 className="px-3 py-2 text-right cursor-pointer"
                 onClick={() => handleSort(['-stats.pending'])}
+                onMouseEnter={(e) => showHeaderTooltip(e, 'Number of transactions currently waiting in this node\'s mempool to be included in a block.')}
+                onMouseLeave={hideTooltip}
+                onMouseMove={moveTooltip}
               >
                 Pending <SortIcon preds={['-stats.pending']} />
               </th>
               <th
                 className="px-3 py-2 text-right cursor-pointer"
                 onClick={() => handleSort(['-stats.block.number', 'stats.block.propagation'])}
+                onMouseEnter={(e) => showHeaderTooltip(e, 'The latest block number this node has seen, and how long after it was mined that this node received it.')}
+                onMouseLeave={hideTooltip}
+                onMouseMove={moveTooltip}
               >
                 Last Block <SortIcon preds={['-stats.block.number', 'stats.block.propagation']} />
               </th>
-              <th className="px-3 py-2 text-left">Propagation</th>
+              <th
+                className="px-3 py-2 text-left"
+                onMouseEnter={(e) => showHeaderTooltip(e, 'Sparkline showing block propagation times for the last 40 blocks. Taller bars mean slower propagation. Grey bars indicate the block was not received.')}
+                onMouseLeave={hideTooltip}
+                onMouseMove={moveTooltip}
+              >
+                Propagation
+              </th>
               <th
                 className="px-3 py-2 text-right cursor-pointer"
                 onClick={() => handleSort(['-stats.uptime'])}
+                onMouseEnter={(e) => showHeaderTooltip(e, 'Percentage of time this node has been connected and actively reporting data to the stats server.')}
+                onMouseLeave={hideTooltip}
+                onMouseMove={moveTooltip}
               >
                 Uptime <SortIcon preds={['-stats.uptime']} />
               </th>

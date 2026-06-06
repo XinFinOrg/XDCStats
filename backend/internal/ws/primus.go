@@ -59,11 +59,14 @@ func (c *Conn) ReadEvent() (string, json.RawMessage, error) {
 		return "", nil, err
 	}
 
-	// Try Primus ping: {"primus::ping::": timestamp}
+	// Try Primus ping/pong: {"primus::ping::": timestamp} or {"primus::pong::": timestamp}
 	var pingMsg map[string]json.RawMessage
 	if json.Unmarshal(data, &pingMsg) == nil {
 		if ts, ok := pingMsg["primus::ping::"]; ok {
 			return "primus::ping::", ts, nil
+		}
+		if ts, ok := pingMsg["primus::pong::"]; ok {
+			return "primus::pong::", ts, nil
 		}
 	}
 

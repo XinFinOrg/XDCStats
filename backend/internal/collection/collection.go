@@ -364,9 +364,16 @@ func mapToBlockInfo(m map[string]interface{}) node.BlockInfo {
 	b.Timestamp = m["timestamp"]
 	if txs, ok := m["transactions"].([]interface{}); ok {
 		b.Transactions = txs
+	} else {
+		b.Transactions = []interface{}{}
 	}
 	if uncles, ok := m["uncles"].([]interface{}); ok {
 		b.Uncles = uncles
+	} else {
+		b.Uncles = []interface{}{}
+	}
+	if b.Difficulty == nil {
+		b.Difficulty = 0
 	}
 	return b
 }

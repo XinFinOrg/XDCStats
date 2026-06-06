@@ -79,7 +79,14 @@ func (h *APIHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 
 		if event == "primus::pong::" {
-			// node responded to our ping; latency already measured by StartPing
+			// payload is the timestamp we sent in the ping; RTT = now - sent
+			var sentMs int64
+			if err := json.Unmarshal(payload, &sentMs); err == nil && authenticated {
+				rtt := time.Now().UnixMilli() - sentMs
+				if rtt > 0 {
+					h.nodes.UpdateLatency(nodeID, rtt)
+				}
+			}
 			continue
 		}
 
@@ -359,9 +366,16 @@ func mapToBlock(m map[string]interface{}) node.BlockInfo {
 	b.Timestamp = m["timestamp"]
 	if txs, ok := m["transactions"].([]interface{}); ok {
 		b.Transactions = txs
+	} else {
+		b.Transactions = []interface{}{}
 	}
 	if uncles, ok := m["uncles"].([]interface{}); ok {
 		b.Uncles = uncles
+	} else {
+		b.Uncles = []interface{}{}
+	}
+	if b.Difficulty == nil {
+		b.Difficulty = 0
 	}
 	return b
 }
