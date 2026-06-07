@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"strconv"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -236,14 +237,14 @@ func (h *APIHandler) handleStats(nodeID string, payload json.RawMessage) {
 	var data struct {
 		ID    string `json:"id"`
 		Stats struct {
-			Active   bool        `json:"active"`
-			Mining   bool        `json:"mining"`
-			Syncing  bool        `json:"syncing"`
-			Hashrate interface{} `json:"hashrate"`
-			Peers    int         `json:"peers"`
-			GasPrice interface{} `json:"gasPrice"`
-			Uptime   float64     `json:"uptime"`
-			Latency  int64       `json:"latency"`
+			Active   bool            `json:"active"`
+			Mining   bool            `json:"mining"`
+			Syncing  bool            `json:"syncing"`
+			Hashrate interface{}     `json:"hashrate"`
+			Peers    int             `json:"peers"`
+			GasPrice interface{}     `json:"gasPrice"`
+			Uptime   float64         `json:"uptime"`
+			Latency  json.RawMessage `json:"latency"`
 		} `json:"stats"`
 	}
 	if err := json.Unmarshal(payload, &data); err != nil {
@@ -252,8 +253,10 @@ func (h *APIHandler) handleStats(nodeID string, payload json.RawMessage) {
 	}
 	s := data.Stats
 	h.nodes.UpdateStats(data.ID, s.Active, s.Mining, s.Syncing, s.Hashrate, s.GasPrice, s.Peers, s.Uptime)
-	if s.Latency > 0 {
-		h.nodes.UpdateLatency(data.ID, s.Latency)
+	if len(s.Latency) > 0 {
+		if lat, err := parseLatencyField(s.Latency); err == nil && lat > 0 {
+			h.nodes.UpdateLatency(data.ID, lat)
+		}
 	}
 	slog.Info("ws stats", "node", nodeID)
 }
@@ -291,21 +294,25 @@ func (h *APIHandler) handleNodePing(conn *Conn, nodeID string, payload json.RawM
 }
 
 func (h *APIHandler) handleLatency(conn *Conn, nodeID string, payload json.RawMessage) {
-	var data struct {
-		ID      string `json:"id"`
-		Latency int64  `json:"latency"`
+	var raw struct {
+		ID      string          `json:"id"`
+		Latency json.RawMessage `json:"latency"`
 	}
-	if err := json.Unmarshal(payload, &data); err != nil {
+	if err := json.Unmarshal(payload, &raw); err != nil {
 		slog.Warn("ws latency parse error", "node", nodeID, "raw", string(payload), "err", err)
 		return
 	}
-	id := data.ID
+	latency, err := parseLatencyField(raw.Latency)
+	if err != nil {
+		slog.Warn("ws latency field parse error", "node", nodeID, "raw_latency", string(raw.Latency), "err", err)
+		return
+	}
+	id := raw.ID
 	if id == "" {
-		slog.Warn("ws latency event has no id, falling back to nodeID", "node", nodeID, "latency_ms", data.Latency)
 		id = nodeID
 	}
-	slog.Warn("ws latency event received", "node", nodeID, "payload_id", data.ID, "latency_ms", data.Latency)
-	h.nodes.UpdateLatency(id, data.Latency)
+	slog.Warn("ws latency event received", "node", nodeID, "payload_id", raw.ID, "latency_ms", latency)
+	h.nodes.UpdateLatency(id, latency)
 	h.maybeRequestHistory(conn, id)
 }
 
@@ -345,6 +352,25 @@ func (h *APIHandler) validSecret(secret string) bool {
 		}
 	}
 	return false
+}
+
+// parseLatencyField parses a JSON latency value that nodes send as either a
+// number (79) or a quoted string ("79").
+func parseLatencyField(raw json.RawMessage) (int64, error) {
+	if len(raw) == 0 {
+		return 0, fmt.Errorf("empty latency field")
+	}
+	// Try integer first
+	var n int64
+	if err := json.Unmarshal(raw, &n); err == nil {
+		return n, nil
+	}
+	// Fall back to quoted string e.g. "79"
+	var s string
+	if err := json.Unmarshal(raw, &s); err != nil {
+		return 0, fmt.Errorf("latency is neither number nor string: %s", raw)
+	}
+	return strconv.ParseInt(s, 10, 64)
 }
 
 func extractIP(r *http.Request) string {
