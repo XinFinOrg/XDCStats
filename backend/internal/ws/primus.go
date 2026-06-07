@@ -5,6 +5,7 @@ package ws
 
 import (
 	"encoding/json"
+	"log"
 	"sync"
 	"time"
 
@@ -123,7 +124,7 @@ func (c *Conn) StartPing(done <-chan struct{}, onLatency func(ms int64)) {
 			if err != nil {
 				return
 			}
-			// latency is updated when the read loop sees primus::pong::
+			log.Printf("[WARN] ws server-ping sent to %s sentMs=%d (waiting for primus::pong::)", c.ws.RemoteAddr(), sent)
 			_ = onLatency
 		}
 	}

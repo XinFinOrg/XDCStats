@@ -74,6 +74,7 @@ func (h *APIHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 
 		if event == "primus::ping::" {
+			slog.Warn("ws node-sent ping received", "node", nodeID, "payload", string(payload))
 			_ = conn.SendPong(payload)
 			continue
 		}
@@ -81,8 +82,13 @@ func (h *APIHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if event == "primus::pong::" {
 			// payload is the timestamp we sent in the ping; RTT = now - sent
 			var sentMs int64
-			if err := json.Unmarshal(payload, &sentMs); err == nil && authenticated {
+			if err := json.Unmarshal(payload, &sentMs); err != nil {
+				slog.Warn("ws pong parse error", "node", nodeID, "payload", string(payload), "err", err)
+			} else if !authenticated {
+				slog.Warn("ws pong before auth", "node", nodeID)
+			} else {
 				rtt := time.Now().UnixMilli() - sentMs
+				slog.Warn("ws pong received", "node", nodeID, "sentMs", sentMs, "rtt_ms", rtt)
 				if rtt > 0 {
 					h.nodes.UpdateLatency(nodeID, rtt)
 				}
@@ -125,6 +131,8 @@ func (h *APIHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			if authenticated {
 				h.handleForensics(payload)
 			}
+		default:
+			slog.Warn("ws unknown event", "event", event, "node", nodeID, "payload", string(payload))
 		}
 	}
 
@@ -177,6 +185,9 @@ func (h *APIHandler) handleUpdate(conn *Conn, nodeID string, payload json.RawMes
 	if err := json.Unmarshal(payload, &data); err != nil || data.Stats == nil {
 		slog.Warn("ws malformed update", "node", nodeID)
 		return
+	}
+	if lat, ok := data.Stats["latency"]; ok {
+		slog.Warn("ws update contains latency field", "node", nodeID, "latency_raw", lat)
 	}
 	_, _, err := h.nodes.Update(data.ID, data.Stats)
 	if err != nil {
@@ -272,11 +283,11 @@ func (h *APIHandler) handleNodePing(conn *Conn, nodeID string, payload json.RawM
 		ClientTime interface{} `json:"clientTime"`
 	}
 	json.Unmarshal(payload, &data)
+	slog.Warn("ws node-ping received, sending node-pong", "node", nodeID, "clientTime", data.ClientTime)
 	_ = conn.Emit("node-pong", map[string]interface{}{
 		"clientTime": data.ClientTime,
 		"serverTime": time.Now().UnixMilli(),
 	})
-	slog.Info("ws ping→pong", "node", nodeID)
 }
 
 func (h *APIHandler) handleLatency(conn *Conn, nodeID string, payload json.RawMessage) {
@@ -285,14 +296,16 @@ func (h *APIHandler) handleLatency(conn *Conn, nodeID string, payload json.RawMe
 		Latency int64  `json:"latency"`
 	}
 	if err := json.Unmarshal(payload, &data); err != nil {
+		slog.Warn("ws latency parse error", "node", nodeID, "raw", string(payload), "err", err)
 		return
 	}
 	id := data.ID
 	if id == "" {
+		slog.Warn("ws latency event has no id, falling back to nodeID", "node", nodeID, "latency_ms", data.Latency)
 		id = nodeID
 	}
+	slog.Warn("ws latency event received", "node", nodeID, "payload_id", data.ID, "latency_ms", data.Latency)
 	h.nodes.UpdateLatency(id, data.Latency)
-	slog.Info("ws latency", "node", nodeID, "ms", data.Latency)
 	h.maybeRequestHistory(conn, id)
 }
 
