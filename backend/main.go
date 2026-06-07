@@ -29,9 +29,14 @@ import (
 func main() {
 	cfg := config.Load()
 
-	logLevel := slog.LevelInfo
-	if os.Getenv("LOG_LEVEL") == "debug" {
+	logLevel := slog.LevelWarn
+	switch os.Getenv("LOG_LEVEL") {
+	case "debug":
 		logLevel = slog.LevelDebug
+	case "info":
+		logLevel = slog.LevelInfo
+	case "error":
+		logLevel = slog.LevelError
 	}
 	slog.SetDefault(slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
 		Level: logLevel,

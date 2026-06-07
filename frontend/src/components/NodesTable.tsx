@@ -230,7 +230,10 @@ const NodesTable: React.FC<NodesTableProps> = ({ nodes, bestBlock, onPin }) => {
   const filteredNodes = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
     if (!q) return sorted;
-    return sorted.filter((n) => (n.info.name || n.id).toLowerCase().includes(q));
+    return sorted.filter((n) =>
+      (n.info.name || n.id).toLowerCase().includes(q) ||
+      (n.info.node || '').toLowerCase().includes(q)
+    );
   }, [sorted, searchQuery]);
 
   // Reset to page 0 when the filtered set changes
@@ -326,8 +329,8 @@ const NodesTable: React.FC<NodesTableProps> = ({ nodes, bestBlock, onPin }) => {
           placeholder="Search nodes…"
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          className="text-sm px-3 py-1 rounded border border-gray-200 focus:outline-none focus:border-blue-400"
-          style={{ minWidth: 180 }}
+          className="text-sm font-semibold px-3 py-1.5 rounded-md border-2 border-blue-400 bg-white text-blue-900 placeholder-blue-300 focus:outline-none focus:border-blue-600"
+          style={{ minWidth: 300 }}
         />
         <div className="flex items-center gap-1" style={{ whiteSpace: 'nowrap' }}>
           {REFRESH_OPTIONS.map((opt) => (

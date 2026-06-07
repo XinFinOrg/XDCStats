@@ -232,6 +232,7 @@ func (h *APIHandler) handleStats(nodeID string, payload json.RawMessage) {
 			Peers    int         `json:"peers"`
 			GasPrice interface{} `json:"gasPrice"`
 			Uptime   float64     `json:"uptime"`
+			Latency  int64       `json:"latency"`
 		} `json:"stats"`
 	}
 	if err := json.Unmarshal(payload, &data); err != nil {
@@ -240,6 +241,9 @@ func (h *APIHandler) handleStats(nodeID string, payload json.RawMessage) {
 	}
 	s := data.Stats
 	h.nodes.UpdateStats(data.ID, s.Active, s.Mining, s.Syncing, s.Hashrate, s.GasPrice, s.Peers, s.Uptime)
+	if s.Latency > 0 {
+		h.nodes.UpdateLatency(data.ID, s.Latency)
+	}
 	slog.Info("ws stats", "node", nodeID)
 }
 
@@ -283,9 +287,13 @@ func (h *APIHandler) handleLatency(conn *Conn, nodeID string, payload json.RawMe
 	if err := json.Unmarshal(payload, &data); err != nil {
 		return
 	}
-	h.nodes.UpdateLatency(data.ID, data.Latency)
+	id := data.ID
+	if id == "" {
+		id = nodeID
+	}
+	h.nodes.UpdateLatency(id, data.Latency)
 	slog.Info("ws latency", "node", nodeID, "ms", data.Latency)
-	h.maybeRequestHistory(conn, data.ID)
+	h.maybeRequestHistory(conn, id)
 }
 
 // ForensicsHandler is set by main when forensics is enabled.

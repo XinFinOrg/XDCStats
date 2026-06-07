@@ -84,6 +84,10 @@ func (c *Collection) Update(id string, stats map[string]interface{}) (*node.Bloc
 
 	n.SetBasicStats(active, mining, syncing, hashrate, gasPrice, peers, uptime)
 
+	if lat, ok := toInt64(stats["latency"]); ok && lat > 0 {
+		n.SetLatency(lat)
+	}
+
 	var committed *node.CommittedBlockInfo
 	n.SetBlock(block, prop, committed)
 
@@ -376,6 +380,21 @@ func mapToBlockInfo(m map[string]interface{}) node.BlockInfo {
 		b.Difficulty = 0
 	}
 	return b
+}
+
+func toInt64(v interface{}) (int64, bool) {
+	if v == nil {
+		return 0, false
+	}
+	switch n := v.(type) {
+	case float64:
+		return int64(n), true
+	case int:
+		return int64(n), true
+	case int64:
+		return n, true
+	}
+	return 0, false
 }
 
 func toInt(v interface{}) (int, bool) {
