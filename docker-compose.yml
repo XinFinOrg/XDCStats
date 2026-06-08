@@ -1,0 +1,24 @@
+services:
+  backend:
+    image: xinfinorg/xdcstats-backend:acbc983
+    restart: unless-stopped
+    ports:
+      - "2000:2000"
+    environment:
+      PORT: "2000"
+      WS_SECRET: ${WS_SECRET:-xinfin_xdpos_hybrid_network_stats}
+      ADMIN_SECRET: ${ADMIN_SECRET:-}
+      ENABLE_FORENSICS: ${ENABLE_FORENSICS:-false}
+      MONGODBURL: ${MONGODBURL:-localhost:27017}
+      MASTERNODE_URL: ${MASTERNODE_URL:-https://master.xinfin.network/api}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+
+  frontend:
+    image: xinfinorg/xdcstats-frontend:acbc983
+    restart: unless-stopped
+    ports:
+      - "32001:32001"
+    environment:
+      VITE_API_URL: ${VITE_API_URL:-http://154.38.175.218:32011}
+    depends_on:
+      - backend

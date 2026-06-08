@@ -19,7 +19,6 @@ import VersionCard from './components/VersionCard';
 import HistoryModal, { type HistoryMetric } from './components/HistoryModal';
 import SparklineChart from './components/SparklineChart';
 import BlockPropagationChart from './components/BlockPropagationChart';
-import WorldMap from './components/WorldMap';
 import NodesTable from './components/NodesTable';
 
 const MAX_BINS = 40;
@@ -29,42 +28,6 @@ function fillArray(len: number, val = 0): number[] {
   return Array(len).fill(val);
 }
 
-const CollapsibleMap: React.FC<{ nodes: Node[]; bestBlock: number }> = ({ nodes, bestBlock }) => {
-  const [expanded, setExpanded] = React.useState(false);
-  const geoCount = nodes.filter((n) => n.geo !== null && n.geo.ll[0] !== 0).length;
-
-  return (
-    <div
-      className="bg-white rounded-xl mb-4"
-      style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.07), 0 4px 16px rgba(0,0,0,0.05)' }}
-    >
-      <button
-        onClick={() => setExpanded((v) => !v)}
-        className="w-full flex items-center justify-between px-5 py-3 focus:outline-none"
-        style={{ background: 'none', border: 'none', cursor: 'pointer' }}
-      >
-        <div className="flex items-center gap-3">
-          <p className="header-title" style={{ marginBottom: 0 }}>Node Locations</p>
-          {geoCount > 0 && (
-            <span className="text-xs text-muted font-normal">{geoCount} nodes</span>
-          )}
-        </div>
-        <span
-          className="text-muted text-sm"
-          style={{ transform: expanded ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s ease', display: 'inline-block' }}
-        >
-          ▼
-        </span>
-      </button>
-
-      {expanded && (
-        <div style={{ borderTop: '1px solid #f0f4f8', padding: '0 12px 12px' }}>
-          <WorldMap nodes={nodes} bestBlock={bestBlock} />
-        </div>
-      )}
-    </div>
-  );
-};
 
 const App: React.FC = () => {
   // ─── State ───────────────────────────────────────────────────────────────
@@ -369,9 +332,6 @@ const App: React.FC = () => {
             avg={blockPropagationAvg}
           />
         </div>
-
-        {/* World Map — collapsible */}
-        <CollapsibleMap nodes={nodes} bestBlock={bestBlock} />
 
         {/* Nodes Table */}
         <NodesTable

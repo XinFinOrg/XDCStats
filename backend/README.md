@@ -1,6 +1,6 @@
 # XDCStats Backend
 
-Node.js / Express service that collects real-time statistics from XDC network nodes via WebSocket and exposes a REST API and live push channels to dashboard clients.
+Go / Gin service that collects real-time statistics from XDC network nodes via WebSocket and exposes a REST API and live push channels to dashboard clients.
 
 ## Table of Contents
 
@@ -15,8 +15,7 @@ Node.js / Express service that collects real-time statistics from XDC network no
 
 ## Prerequisites
 
-- Node.js 20+
-- npm
+- Go 1.23+
 - MongoDB (only required when `ENABLE_FORENSICS=true`)
 
 ---
@@ -42,9 +41,9 @@ Copy `.env_sample` to `.env` and fill in the values.
 ### Local development
 
 ```bash
-npm install
+go mod download
 cp .env_sample .env   # edit as needed
-npm run dev           # nodemon, restarts on change
+go run .
 ```
 
 Server listens on http://localhost:2000.
@@ -52,13 +51,15 @@ Server listens on http://localhost:2000.
 ### Docker Compose (includes MongoDB)
 
 ```bash
-npm run start:docker
+# from repo root
+make docker-up
 ```
 
-### Production (PM2)
+### Build binary
 
 ```bash
-npm run start:pm2
+go build -o xdcstats-backend .
+./xdcstats-backend
 ```
 
 ### Docker image
@@ -257,7 +258,7 @@ Requires `ENABLE_FORENSICS=true`. Returns new forensics reports since a cursor I
 
 ## WebSocket Channels
 
-The server exposes three [Primus](https://github.com/primus/primus) WebSocket endpoints.
+The server exposes three WebSocket endpoints (using [gorilla/websocket](https://github.com/gorilla/websocket)).
 
 ### /api — Node reporting socket
 

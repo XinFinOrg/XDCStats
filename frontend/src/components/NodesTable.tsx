@@ -352,6 +352,46 @@ const NodesTable: React.FC<NodesTableProps> = ({ nodes, bestBlock, onPin }) => {
         </div>
       </div>
 
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between px-4 py-2 border-b border-gray-100 text-xs text-muted">
+          <span>
+            {page * PAGE_SIZE + 1}–{Math.min((page + 1) * PAGE_SIZE, filteredNodes.length)} of {filteredNodes.length} nodes
+          </span>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => setPage((p) => Math.max(0, p - 1))}
+              disabled={page === 0}
+              className="px-2 py-1 rounded focus:outline-none"
+              style={{
+                background: page === 0 ? '#f0f4f8' : '#242c6d',
+                color: page === 0 ? '#a1a7cc' : '#fff',
+                border: 'none',
+                cursor: page === 0 ? 'default' : 'pointer',
+              }}
+            >
+              ‹ Prev
+            </button>
+            <span className="px-2">
+              Page {page + 1} / {totalPages}
+            </span>
+            <button
+              onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
+              disabled={page >= totalPages - 1}
+              className="px-2 py-1 rounded focus:outline-none"
+              style={{
+                background: page >= totalPages - 1 ? '#f0f4f8' : '#242c6d',
+                color: page >= totalPages - 1 ? '#a1a7cc' : '#fff',
+                border: 'none',
+                cursor: page >= totalPages - 1 ? 'default' : 'pointer',
+              }}
+            >
+              Next ›
+            </button>
+          </div>
+        </div>
+      )}
+
       <div className="table-responsive">
         <table className="stats-table w-full" style={{ minWidth: 900 }}>
           <thead>
@@ -460,46 +500,6 @@ const NodesTable: React.FC<NodesTableProps> = ({ nodes, bestBlock, onPin }) => {
           </tbody>
         </table>
       </div>
-
-      {/* Pagination */}
-      {totalPages > 1 && (
-        <div className="flex items-center justify-between px-4 py-2 border-t border-gray-100 text-xs text-muted">
-          <span>
-            {page * PAGE_SIZE + 1}–{Math.min((page + 1) * PAGE_SIZE, filteredNodes.length)} of {filteredNodes.length} nodes
-          </span>
-          <div className="flex items-center gap-1">
-            <button
-              onClick={() => setPage((p) => Math.max(0, p - 1))}
-              disabled={page === 0}
-              className="px-2 py-1 rounded focus:outline-none"
-              style={{
-                background: page === 0 ? '#f0f4f8' : '#242c6d',
-                color: page === 0 ? '#a1a7cc' : '#fff',
-                border: 'none',
-                cursor: page === 0 ? 'default' : 'pointer',
-              }}
-            >
-              ‹ Prev
-            </button>
-            <span className="px-2">
-              Page {page + 1} / {totalPages}
-            </span>
-            <button
-              onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
-              disabled={page >= totalPages - 1}
-              className="px-2 py-1 rounded focus:outline-none"
-              style={{
-                background: page >= totalPages - 1 ? '#f0f4f8' : '#242c6d',
-                color: page >= totalPages - 1 ? '#a1a7cc' : '#fff',
-                border: 'none',
-                cursor: page >= totalPages - 1 ? 'default' : 'pointer',
-              }}
-            >
-              Next ›
-            </button>
-          </div>
-        </div>
-      )}
 
       {/* Floating tooltip */}
       {tooltip.visible && (
