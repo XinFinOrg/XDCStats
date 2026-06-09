@@ -12,6 +12,45 @@ XDCStats/
 
 ## Quick Start
 
+### Docker (recommended)
+
+The easiest way to run the full stack is with the start wizard:
+
+```bash
+./start-wizard.sh [devnet|testnet|mainnet]
+```
+
+If no environment is given the wizard prompts you to choose:
+
+```
+  Select an environment:
+    1) devnet   — http://154.38.175.218:32011
+    2) testnet  — https://testnet-stats.xinfin.network
+    3) mainnet  — https://stats.xinfin.network
+
+  Environment [devnet/testnet/mainnet]:
+```
+
+It then shows every env var and its default value before asking for confirmation, and starts both containers via `docker compose up -d`.
+
+```bash
+# Stop
+docker compose down
+
+# Follow logs
+docker compose logs -f
+```
+
+Override any backend variable by exporting it before running:
+
+```bash
+WS_SECRET=mysecret ./start-wizard.sh mainnet
+```
+
+**Prerequisites:** Docker with Compose v2 (`docker compose`).
+
+---
+
 ### Backend
 
 ```bash
