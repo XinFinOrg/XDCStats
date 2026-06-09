@@ -122,13 +122,16 @@ fi
 # ── start ─────────────────────────────────────────────────────────────────────
 printf "\n  Starting XDCStats (%s)…\n\n" "$ENV_NAME"
 
-docker compose -f "$REPO_ROOT/docker-compose.yml" up -d
-
-printf "\n"
-printf "  ${GREEN}${BOLD}Started!${NC}\n"
-printf "  ${CYAN}Frontend${NC} → http://localhost:32001\n"
-printf "  ${CYAN}Backend${NC}  → http://localhost:2000\n"
-printf "\n"
-printf "  ${DIM}Logs:  docker compose logs -f${NC}\n"
-printf "  ${DIM}Stop:  docker compose down${NC}\n"
-printf "\n"
+if docker compose -f "$REPO_ROOT/docker-compose.yml" up -d; then
+    printf "\n"
+    printf "  ${GREEN}${BOLD}Started!${NC}\n"
+    printf "  ${CYAN}Frontend${NC} → http://localhost:32001\n"
+    printf "  ${CYAN}Backend${NC}  → http://localhost:2000\n"
+    printf "\n"
+    printf "  ${DIM}Logs:  docker compose logs -f${NC}\n"
+    printf "  ${DIM}Stop:  docker compose down${NC}\n"
+    printf "\n"
+else
+    printf "\n  ${RED}Error:${NC} docker compose failed — see output above.\n\n" >&2
+    exit 1
+fi
