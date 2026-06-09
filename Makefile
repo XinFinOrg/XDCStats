@@ -57,7 +57,6 @@ frontend-run: docker-build-frontend frontend-stop
 		--name $(FRONTEND_CONTAINER) \
 		--restart unless-stopped \
 		-p $(FRONTEND_PORT):32001 \
-		-v $(PWD)/$(FRONTEND_DIR)/config:/app/config:ro \
 		$(FRONTEND_IMAGE):$(TAG)
 	@echo "Frontend → http://localhost:$(FRONTEND_PORT)"
 	@echo "Backend  → http://localhost:$(BACKEND_PORT) (start separately with: make dev-backend)"

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"strconv"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -74,12 +75,25 @@ func (h *APIHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 
 		if event == "primus::ping::" {
+			slog.Warn("ws node-sent ping received", "node", nodeID, "payload", string(payload))
 			_ = conn.SendPong(payload)
 			continue
 		}
 
 		if event == "primus::pong::" {
-			// node responded to our ping; latency already measured by StartPing
+			// payload is the timestamp we sent in the ping; RTT = now - sent
+			var sentMs int64
+			if err := json.Unmarshal(payload, &sentMs); err != nil {
+				slog.Warn("ws pong parse error", "node", nodeID, "payload", string(payload), "err", err)
+			} else if !authenticated {
+				slog.Warn("ws pong before auth", "node", nodeID)
+			} else {
+				rtt := time.Now().UnixMilli() - sentMs
+				slog.Warn("ws pong received", "node", nodeID, "sentMs", sentMs, "rtt_ms", rtt)
+				if rtt > 0 {
+					h.nodes.UpdateLatency(nodeID, rtt)
+				}
+			}
 			continue
 		}
 
@@ -118,6 +132,8 @@ func (h *APIHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			if authenticated {
 				h.handleForensics(payload)
 			}
+		default:
+			slog.Warn("ws unknown event", "event", event, "node", nodeID, "payload", string(payload))
 		}
 	}
 
@@ -171,6 +187,9 @@ func (h *APIHandler) handleUpdate(conn *Conn, nodeID string, payload json.RawMes
 		slog.Warn("ws malformed update", "node", nodeID)
 		return
 	}
+	if lat, ok := data.Stats["latency"]; ok {
+		slog.Warn("ws update contains latency field", "node", nodeID, "latency_raw", lat)
+	}
 	_, _, err := h.nodes.Update(data.ID, data.Stats)
 	if err != nil {
 		slog.Warn("ws update error", "node", nodeID, "err", err)
@@ -218,13 +237,14 @@ func (h *APIHandler) handleStats(nodeID string, payload json.RawMessage) {
 	var data struct {
 		ID    string `json:"id"`
 		Stats struct {
-			Active   bool        `json:"active"`
-			Mining   bool        `json:"mining"`
-			Syncing  bool        `json:"syncing"`
-			Hashrate interface{} `json:"hashrate"`
-			Peers    int         `json:"peers"`
-			GasPrice interface{} `json:"gasPrice"`
-			Uptime   float64     `json:"uptime"`
+			Active   bool            `json:"active"`
+			Mining   bool            `json:"mining"`
+			Syncing  bool            `json:"syncing"`
+			Hashrate interface{}     `json:"hashrate"`
+			Peers    int             `json:"peers"`
+			GasPrice interface{}     `json:"gasPrice"`
+			Uptime   float64         `json:"uptime"`
+			Latency  json.RawMessage `json:"latency"`
 		} `json:"stats"`
 	}
 	if err := json.Unmarshal(payload, &data); err != nil {
@@ -233,6 +253,11 @@ func (h *APIHandler) handleStats(nodeID string, payload json.RawMessage) {
 	}
 	s := data.Stats
 	h.nodes.UpdateStats(data.ID, s.Active, s.Mining, s.Syncing, s.Hashrate, s.GasPrice, s.Peers, s.Uptime)
+	if len(s.Latency) > 0 {
+		if lat, err := parseLatencyField(s.Latency); err == nil && lat > 0 {
+			h.nodes.UpdateLatency(data.ID, lat)
+		}
+	}
 	slog.Info("ws stats", "node", nodeID)
 }
 
@@ -261,24 +286,34 @@ func (h *APIHandler) handleNodePing(conn *Conn, nodeID string, payload json.RawM
 		ClientTime interface{} `json:"clientTime"`
 	}
 	json.Unmarshal(payload, &data)
+	slog.Warn("ws node-ping received, sending node-pong", "node", nodeID, "clientTime", data.ClientTime)
 	_ = conn.Emit("node-pong", map[string]interface{}{
 		"clientTime": data.ClientTime,
 		"serverTime": time.Now().UnixMilli(),
 	})
-	slog.Info("ws ping→pong", "node", nodeID)
 }
 
 func (h *APIHandler) handleLatency(conn *Conn, nodeID string, payload json.RawMessage) {
-	var data struct {
-		ID      string `json:"id"`
-		Latency int64  `json:"latency"`
+	var raw struct {
+		ID      string          `json:"id"`
+		Latency json.RawMessage `json:"latency"`
 	}
-	if err := json.Unmarshal(payload, &data); err != nil {
+	if err := json.Unmarshal(payload, &raw); err != nil {
+		slog.Warn("ws latency parse error", "node", nodeID, "raw", string(payload), "err", err)
 		return
 	}
-	h.nodes.UpdateLatency(data.ID, data.Latency)
-	slog.Info("ws latency", "node", nodeID, "ms", data.Latency)
-	h.maybeRequestHistory(conn, data.ID)
+	latency, err := parseLatencyField(raw.Latency)
+	if err != nil {
+		slog.Warn("ws latency field parse error", "node", nodeID, "raw_latency", string(raw.Latency), "err", err)
+		return
+	}
+	id := raw.ID
+	if id == "" {
+		id = nodeID
+	}
+	slog.Warn("ws latency event received", "node", nodeID, "payload_id", raw.ID, "latency_ms", latency)
+	h.nodes.UpdateLatency(id, latency)
+	h.maybeRequestHistory(conn, id)
 }
 
 // ForensicsHandler is set by main when forensics is enabled.
@@ -317,6 +352,25 @@ func (h *APIHandler) validSecret(secret string) bool {
 		}
 	}
 	return false
+}
+
+// parseLatencyField parses a JSON latency value that nodes send as either a
+// number (79) or a quoted string ("79").
+func parseLatencyField(raw json.RawMessage) (int64, error) {
+	if len(raw) == 0 {
+		return 0, fmt.Errorf("empty latency field")
+	}
+	// Try integer first
+	var n int64
+	if err := json.Unmarshal(raw, &n); err == nil {
+		return n, nil
+	}
+	// Fall back to quoted string e.g. "79"
+	var s string
+	if err := json.Unmarshal(raw, &s); err != nil {
+		return 0, fmt.Errorf("latency is neither number nor string: %s", raw)
+	}
+	return strconv.ParseInt(s, 10, 64)
 }
 
 func extractIP(r *http.Request) string {
@@ -359,9 +413,16 @@ func mapToBlock(m map[string]interface{}) node.BlockInfo {
 	b.Timestamp = m["timestamp"]
 	if txs, ok := m["transactions"].([]interface{}); ok {
 		b.Transactions = txs
+	} else {
+		b.Transactions = []interface{}{}
 	}
 	if uncles, ok := m["uncles"].([]interface{}); ok {
 		b.Uncles = uncles
+	} else {
+		b.Uncles = []interface{}{}
+	}
+	if b.Difficulty == nil {
+		b.Difficulty = 0
 	}
 	return b
 }

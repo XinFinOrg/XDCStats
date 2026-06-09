@@ -6,7 +6,7 @@ Monorepo for XDC Network Statistics — a backend data collection service and a 
 
 ```
 XDCStats/
-├── backend/    # Express/Node.js API, WebSocket server, forensics
+├── backend/    # Go/Gin REST API, WebSocket server, optional forensics
 └── frontend/   # React + TypeScript + Vite dashboard
 ```
 
@@ -17,8 +17,8 @@ XDCStats/
 ```bash
 cd backend
 cp .env_sample .env   # fill in the required environment variables
-npm install
-npm run dev
+go mod download
+go run .
 ```
 
 Runs on **http://localhost:2000**. See [backend/README.md](backend/README.md) for full environment variable reference and MongoDB/Forensics setup.
@@ -36,26 +36,24 @@ Runs on **http://localhost:32001**.
 
 ## Backend
 
-Node.js / Express server that connects to XDC network nodes via WebSocket, aggregates statistics, and exposes a REST + WebSocket API.
+Go / Gin server that connects to XDC network nodes via WebSocket, aggregates statistics, and exposes a REST + WebSocket API.
 
-| Script | Description |
-|--------|-------------|
-| `npm run dev` | Start with nodemon + local MongoDB |
-| `npm start` | Production server |
-| `npm run start:docker` | Start via Docker Compose |
-| `npm run start:pm2` | Start with PM2 |
-| `npm run alert` | Start alert service with PM2 |
+| Command | Description |
+|---------|-------------|
+| `go run .` | Run backend locally |
+| `go build -o xdcstats-backend .` | Build binary |
+| `make dev-backend` | Run via Makefile shorthand |
+| `make docker-up` | Start backend + MongoDB via Docker Compose |
 
-**Prerequisites:** Node 16, MongoDB (only required for Forensics).
+**Prerequisites:** Go 1.23+, MongoDB (only required when `ENABLE_FORENSICS=true`).
 
 ### Docker
 
 ```bash
-cd backend
-npm run start:docker
+make docker-up
 ```
 
-The `docker-compose.yml` spins up both the app and a MongoDB instance.
+The `backend/docker-compose.yml` spins up both the app and a MongoDB instance.
 
 ### Forensics
 

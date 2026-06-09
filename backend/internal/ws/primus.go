@@ -5,6 +5,7 @@ package ws
 
 import (
 	"encoding/json"
+	"log"
 	"sync"
 	"time"
 
@@ -59,11 +60,14 @@ func (c *Conn) ReadEvent() (string, json.RawMessage, error) {
 		return "", nil, err
 	}
 
-	// Try Primus ping: {"primus::ping::": timestamp}
+	// Try Primus ping/pong: {"primus::ping::": timestamp} or {"primus::pong::": timestamp}
 	var pingMsg map[string]json.RawMessage
 	if json.Unmarshal(data, &pingMsg) == nil {
 		if ts, ok := pingMsg["primus::ping::"]; ok {
 			return "primus::ping::", ts, nil
+		}
+		if ts, ok := pingMsg["primus::pong::"]; ok {
+			return "primus::pong::", ts, nil
 		}
 	}
 
@@ -120,7 +124,7 @@ func (c *Conn) StartPing(done <-chan struct{}, onLatency func(ms int64)) {
 			if err != nil {
 				return
 			}
-			// latency is updated when the read loop sees primus::pong::
+			log.Printf("[WARN] ws server-ping sent to %s sentMs=%d (waiting for primus::pong::)", c.ws.RemoteAddr(), sent)
 			_ = onLatency
 		}
 	}
