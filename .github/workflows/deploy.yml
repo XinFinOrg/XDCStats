@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - master
+      - liam
 
 env:
   REGISTRY: docker.io
@@ -49,6 +50,8 @@ jobs:
           tags: |
             ${{ env.FRONTEND_IMAGE }}:${{ env.TAG }}
             ${{ env.FRONTEND_IMAGE }}:latest
+          build-args: |
+            VITE_API_URL=http://154.38.175.218:32011
           cache-from: type=gha,scope=frontend
           cache-to: type=gha,mode=max,scope=frontend
 
