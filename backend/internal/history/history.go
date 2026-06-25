@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	MaxHistory         = 100000
+	MaxHistory         = 20000
 	MaxPeerPropagation = 40
 	MinPropagation     = int64(0)
 	MaxPropagation     = int64(10000)
@@ -32,6 +32,8 @@ type HistoryItem struct {
 	Block       node.BlockInfo   `json:"block"`
 	Forks       []node.BlockInfo `json:"forks"`
 	PropagTimes []PropagTime     `json:"propagTimes"`
+	TxCount     int              `json:"-"`
+	UncleCount  int              `json:"-"`
 }
 
 type ChartsData struct {
@@ -142,9 +144,15 @@ func (h *History) Add(block node.BlockInfo, nodeID string, trusted bool, addingH
 		forkIdx := compareForks(existing, block)
 
 		if propIdx == -1 {
-			if forkIdx >= 0 {
+			if len(existing.PropagTimes) >= MaxPeerPropagation {
+				// already have enough propagation samples; skip this reporter
+			} else if forkIdx >= 0 {
 				block.Arrived = existing.Forks[forkIdx].Arrived
 				block.Propagation = now - existing.Forks[forkIdx].Received
+				existing.PropagTimes = append(existing.PropagTimes, PropagTime{
+					Node: nodeID, Trusted: trusted, Fork: forkIdx,
+					Received: now, Propagation: block.Propagation,
+				})
 			} else {
 				if prev := h.prevMaxBlock(blockNum); prev != nil {
 					block.Time = max64(block.Arrived-prev.Block.Arrived, 0)
@@ -155,11 +163,11 @@ func (h *History) Add(block node.BlockInfo, nodeID string, trusted bool, addingH
 				forkIdx = len(existing.Forks)
 				existing.Forks = append(existing.Forks, block)
 				existing.Forks[forkIdx].Fork = forkIdx
+				existing.PropagTimes = append(existing.PropagTimes, PropagTime{
+					Node: nodeID, Trusted: trusted, Fork: forkIdx,
+					Received: now, Propagation: block.Propagation,
+				})
 			}
-			existing.PropagTimes = append(existing.PropagTimes, PropagTime{
-				Node: nodeID, Trusted: trusted, Fork: forkIdx,
-				Received: now, Propagation: block.Propagation,
-			})
 		} else {
 			if forkIdx >= 0 {
 				block.Arrived = existing.Forks[forkIdx].Arrived
@@ -245,6 +253,14 @@ func (h *History) Add(block node.BlockInfo, nodeID string, trusted bool, addingH
 }
 
 func (h *History) save(item *HistoryItem) {
+	item.TxCount = len(item.Block.Transactions)
+	item.UncleCount = len(item.Block.Uncles)
+	item.Block.Transactions = nil
+	item.Block.Uncles = nil
+	for i := range item.Forks {
+		item.Forks[i].Transactions = nil
+		item.Forks[i].Uncles = nil
+	}
 	h.items = append(h.items, item)
 	sort.Slice(h.items, func(i, j int) bool {
 		return h.items[i].Height > h.items[j].Height
@@ -426,8 +442,8 @@ func (h *History) buildChartsData() ChartsData {
 		heights[ri] = item.Height
 		blocktimes[ri] = float64(item.Block.Time) / 1000.0
 		difficulties[ri] = item.Block.Difficulty
-		unclesCnt[ri] = len(item.Block.Uncles)
-		transactions[ri] = len(item.Block.Transactions)
+		unclesCnt[ri] = item.UncleCount
+		transactions[ri] = item.TxCount
 		gasSpending[ri] = item.Block.GasUsed
 		gasLimit[ri] = item.Block.GasLimit
 	}
@@ -581,7 +597,7 @@ func (h *History) getUncleCount() []int {
 	}
 	uncleList := make([]int, count)
 	for i := 0; i < count; i++ {
-		uncleList[i] = len(h.items[i].Block.Uncles)
+		uncleList[i] = h.items[i].UncleCount
 	}
 	result := make([]int, MaxBins)
 	for i := 0; i < MaxBins; i++ {
@@ -623,7 +639,7 @@ func (h *History) GetMetricHistory(metric string, limit int) *MetricHistory {
 		case "blocktime":
 			values[ri] = float64(item.Block.Time) / 1000.0
 		case "transactions":
-			values[ri] = float64(len(item.Block.Transactions))
+			values[ri] = float64(item.TxCount)
 		case "gasUsed":
 			values[ri] = node.ToFloat64(item.Block.GasUsed)
 		default:

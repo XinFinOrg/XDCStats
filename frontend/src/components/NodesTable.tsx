@@ -170,10 +170,10 @@ const NodeRow = React.memo<NodeRowProps>(({ node, bestBlock, visibleCols, onPin,
       </td>
 
       {show('name') && (
-        <td className="px-3 py-2" style={{ maxWidth: 200 }}>
+        <td className="px-3 py-2" style={{ minWidth: 320 }}>
           <span
             className="cursor-help font-medium truncate block"
-            style={{ maxWidth: 180 }}
+            style={{ maxWidth: 280 }}
             title={node.info.name}
             onMouseEnter={(e) => onShowTooltip(e, node)}
             onMouseLeave={onHideTooltip}
@@ -183,11 +183,10 @@ const NodeRow = React.memo<NodeRowProps>(({ node, bestBlock, visibleCols, onPin,
           </span>
           {node.info.coinbase && (
             <span
-              className="text-xs font-mono text-muted block truncate"
-              style={{ maxWidth: 180 }}
+              className="text-xs font-mono text-muted block"
               title={node.info.coinbase}
             >
-              {node.info.coinbase.slice(0, 8)}…{node.info.coinbase.slice(-6)}
+              {node.info.coinbase}
             </span>
           )}
           {node.geo && (
@@ -351,7 +350,8 @@ const NodesTable: React.FC<NodesTableProps> = ({ nodes, bestBlock, onPin }) => {
     if (!q) return sorted;
     return sorted.filter((n) =>
       (n.info.name || n.id).toLowerCase().includes(q) ||
-      (n.info.node || '').toLowerCase().includes(q)
+      (n.info.node || '').toLowerCase().includes(q) ||
+      (n.info.coinbase || '').toLowerCase().includes(q)
     );
   }, [sorted, searchQuery]);
 
