@@ -76,6 +76,7 @@ type snapshotInfo struct {
 	OS        string      `json:"os"`
 	OSVersion string      `json:"os_v"`
 	Contact   string      `json:"contact"`
+	Coinbase  string      `json:"coinbase,omitempty"`
 }
 
 type snapshotNode struct {
@@ -101,6 +102,7 @@ func toSnapshotNode(n *node.Node) snapshotNode {
 			OS:        n.Info.OS,
 			OSVersion: n.Info.OSVersion,
 			Contact:   n.Info.Contact,
+			Coinbase:  n.Info.Coinbase,
 		},
 		Geo: n.Geo,
 		Stats: snapshotStats{

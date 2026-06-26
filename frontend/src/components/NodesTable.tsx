@@ -14,6 +14,71 @@ import {
 } from '../utils/filters';
 
 const PAGE_SIZE = 50;
+const COL_STORAGE_KEY = 'xdcstats_visible_cols';
+
+interface ColDef {
+  key: string;
+  label: string;
+  defaultOn: boolean;
+  sortPreds?: string[];
+  tooltip: string;
+  align: 'left' | 'right';
+}
+
+const COLUMNS: ColDef[] = [
+  {
+    key: 'name', label: 'Node Name', defaultOn: true, align: 'left',
+    sortPreds: ['info.name'],
+    tooltip: 'The name reported by the node when it connected.',
+  },
+  {
+    key: 'type', label: 'Type', defaultOn: true, align: 'left',
+    sortPreds: ['info.node'],
+    tooltip: 'Client software and version string reported by the node (e.g. XDCChain/v2.0/linux/go1.21).',
+  },
+  {
+    key: 'latency', label: 'Latency', defaultOn: true, align: 'right',
+    sortPreds: ['stats.latency'],
+    tooltip: 'Round-trip time between this server and the node, measured via WebSocket ping every 30 seconds.',
+  },
+  {
+    key: 'peers', label: 'Peers', defaultOn: true, align: 'right',
+    sortPreds: ['-stats.peers'],
+    tooltip: 'Number of other nodes this node is currently connected to in the P2P network.',
+  },
+  {
+    key: 'pending', label: 'Pending', defaultOn: true, align: 'right',
+    sortPreds: ['-stats.pending'],
+    tooltip: "Number of transactions currently waiting in this node's mempool to be included in a block.",
+  },
+  {
+    key: 'lastBlock', label: 'Last Block', defaultOn: true, align: 'right',
+    sortPreds: ['-stats.block.number', 'stats.block.propagation'],
+    tooltip: 'The latest block number this node has seen, and how long after it was mined that this node received it.',
+  },
+  {
+    key: 'propagation', label: 'Propagation', defaultOn: true, align: 'left',
+    tooltip: 'Sparkline showing block propagation times for the last 40 blocks. Taller bars mean slower propagation. Grey bars indicate the block was not received.',
+  },
+  {
+    key: 'uptime', label: 'Uptime', defaultOn: true, align: 'right',
+    sortPreds: ['-stats.uptime'],
+    tooltip: 'Percentage of time this node has been connected and actively reporting data to the stats server.',
+  },
+];
+
+function loadVisibleCols(): Set<string> {
+  try {
+    const stored = localStorage.getItem(COL_STORAGE_KEY);
+    if (stored) {
+      const parsed: string[] = JSON.parse(stored);
+      // Keep only keys that still exist in COLUMNS
+      const valid = new Set(COLUMNS.map((c) => c.key));
+      return new Set(parsed.filter((k) => valid.has(k)));
+    }
+  } catch {}
+  return new Set(COLUMNS.filter((c) => c.defaultOn).map((c) => c.key));
+}
 
 interface TooltipState {
   visible: boolean;
@@ -74,22 +139,25 @@ const PropagationHistory = React.memo<{ history: number[] }>(({ history }) => {
 interface NodeRowProps {
   node: Node;
   bestBlock: number;
+  visibleCols: Set<string>;
   onPin: (id: string) => void;
   onShowTooltip: (e: React.MouseEvent, node: Node) => void;
   onHideTooltip: () => void;
   onMoveTooltip: (e: React.MouseEvent) => void;
 }
 
-const NodeRow = React.memo<NodeRowProps>(({ node, bestBlock, onPin, onShowTooltip, onHideTooltip, onMoveTooltip }) => {
+const NodeRow = React.memo<NodeRowProps>(({ node, bestBlock, visibleCols, onPin, onShowTooltip, onHideTooltip, onMoveTooltip }) => {
   const lat = node.readable?.latency ?? (node.stats.active ? node.stats.latency + ' ms' : 'offline');
   const latCls = node.readable?.latencyClass ?? (node.stats.active ? 'text-success' : 'text-danger');
   const peerCls = peerClass(node.stats.peers, node.stats.active);
   const blkCls = blockClass(node.stats, bestBlock);
   const propCls = propagationTimeClass(node.stats, bestBlock);
   const uptimeCls = upTimeClass(node.stats.uptime, node.stats.active);
+  const show = (key: string) => visibleCols.has(key);
 
   return (
     <tr className="border-b border-gray-50 hover:bg-gray-50 transition-colors">
+      {/* Pin — always visible */}
       <td className="px-3 py-2 text-center" style={{ width: 36 }}>
         <button
           onClick={() => onPin(node.id)}
@@ -100,60 +168,120 @@ const NodeRow = React.memo<NodeRowProps>(({ node, bestBlock, onPin, onShowToolti
           {node.pinned ? '📌' : '📍'}
         </button>
       </td>
-      <td className="px-3 py-2" style={{ maxWidth: 200 }}>
-        <span
-          className="cursor-help font-medium truncate block"
-          style={{ maxWidth: 180 }}
-          title={node.info.name}
-          onMouseEnter={(e) => onShowTooltip(e, node)}
-          onMouseLeave={onHideTooltip}
-          onMouseMove={onMoveTooltip}
-        >
-          {node.info.name || node.id}
-        </span>
-        {node.geo && (
-          <span className="text-xs text-muted block truncate" style={{ maxWidth: 180 }}>
-            {[node.geo.city, node.geo.country].filter(Boolean).join(', ')}
+
+      {show('name') && (
+        <td className="px-3 py-2" style={{ minWidth: 320 }}>
+          <span
+            className="cursor-help font-medium truncate block"
+            style={{ maxWidth: 280 }}
+            title={node.info.name}
+            onMouseEnter={(e) => onShowTooltip(e, node)}
+            onMouseLeave={onHideTooltip}
+            onMouseMove={onMoveTooltip}
+          >
+            {node.info.name || node.id}
           </span>
-        )}
-      </td>
-      <td className="px-3 py-2">
-        <span className="text-xs font-mono text-dark">
-          {nodeVersionFilter(node.info.node) || '–'}
-        </span>
-      </td>
-      <td className={`px-3 py-2 text-right font-mono text-sm ${latCls}`}>{lat}</td>
-      <td className={`px-3 py-2 text-right font-mono text-sm ${peerCls}`}>
-        {node.stats.active ? node.stats.peers : '–'}
-      </td>
-      <td className="px-3 py-2 text-right font-mono text-sm text-dark">
-        {node.stats.active ? (node.stats.pending ?? 0) : '–'}
-      </td>
-      <td className="px-3 py-2 text-right">
-        <span className={`font-mono text-sm ${blkCls}`}>
-          #{node.stats.block.number}
-        </span>
-        <span className={`text-xs block ${propCls}`}>
-          {blockPropagationFilter(node.stats.block.propagation)}
-        </span>
-      </td>
-      <td className="px-3 py-2">
-        <PropagationHistory history={node.history} />
-      </td>
-      <td className={`px-3 py-2 text-right font-mono text-sm ${uptimeCls}`}>
-        {node.stats.active ? upTimeFilter(node.stats.uptime) : '–'}
-      </td>
+          {node.info.coinbase && (
+            <span
+              className="text-xs font-mono text-muted block"
+              title={node.info.coinbase}
+            >
+              {node.info.coinbase}
+            </span>
+          )}
+          {node.geo && (
+            <span className="text-xs text-muted block truncate" style={{ maxWidth: 180 }}>
+              {[node.geo.city, node.geo.country].filter(Boolean).join(', ')}
+            </span>
+          )}
+        </td>
+      )}
+
+      {show('type') && (
+        <td className="px-3 py-2">
+          <span className="text-xs font-mono text-dark">
+            {nodeVersionFilter(node.info.node) || '–'}
+          </span>
+        </td>
+      )}
+
+      {show('latency') && (
+        <td className={`px-3 py-2 text-right font-mono text-sm ${latCls}`}>{lat}</td>
+      )}
+
+      {show('peers') && (
+        <td className={`px-3 py-2 text-right font-mono text-sm ${peerCls}`}>
+          {node.stats.active ? node.stats.peers : '–'}
+        </td>
+      )}
+
+      {show('pending') && (
+        <td className="px-3 py-2 text-right font-mono text-sm text-dark">
+          {node.stats.active ? (node.stats.pending ?? 0) : '–'}
+        </td>
+      )}
+
+      {show('lastBlock') && (
+        <td className="px-3 py-2 text-right">
+          <span className={`font-mono text-sm ${blkCls}`}>
+            #{node.stats.block.number}
+          </span>
+          <span className={`text-xs block ${propCls}`}>
+            {blockPropagationFilter(node.stats.block.propagation)}
+          </span>
+        </td>
+      )}
+
+      {show('propagation') && (
+        <td className="px-3 py-2">
+          <PropagationHistory history={node.history} />
+        </td>
+      )}
+
+      {show('uptime') && (
+        <td className={`px-3 py-2 text-right font-mono text-sm ${uptimeCls}`}>
+          {node.stats.active ? upTimeFilter(node.stats.uptime) : '–'}
+        </td>
+      )}
     </tr>
   );
 });
 
 const NodesTable: React.FC<NodesTableProps> = ({ nodes, bestBlock, onPin }) => {
+  // ── Column visibility ─────────────────────────────────────────────────────
+  const [visibleCols, setVisibleCols] = useState<Set<string>>(loadVisibleCols);
+  const [colPickerOpen, setColPickerOpen] = useState(false);
+  const colPickerRef = useRef<HTMLDivElement>(null);
+
+  const toggleCol = useCallback((key: string) => {
+    setVisibleCols((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) {
+        if (next.size === 1) return prev; // keep at least one column
+        next.delete(key);
+      } else {
+        next.add(key);
+      }
+      localStorage.setItem(COL_STORAGE_KEY, JSON.stringify([...next]));
+      return next;
+    });
+  }, []);
+
+  // Close picker on outside click
+  useEffect(() => {
+    if (!colPickerOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (colPickerRef.current && !colPickerRef.current.contains(e.target as HTMLElement)) {
+        setColPickerOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [colPickerOpen]);
+
   // ── Refresh interval ──────────────────────────────────────────────────────
   const [refreshMs, setRefreshMs] = useState<RefreshMs>(5000);
 
-  // displayedNodes is what the table actually renders.
-  // In real-time mode it mirrors `nodes` directly.
-  // In interval mode it only updates when the timer fires.
   const [displayedNodes, setDisplayedNodes] = useState<Node[]>(nodes);
   const [displayedBestBlock, setDisplayedBestBlock] = useState(bestBlock);
   const pendingRef = useRef({ nodes, bestBlock });
@@ -164,8 +292,6 @@ const NodesTable: React.FC<NodesTableProps> = ({ nodes, bestBlock, onPin }) => {
       setDisplayedNodes(nodes);
       setDisplayedBestBlock(bestBlock);
     }
-    // refreshMs === -1: paused — pendingRef stays updated but display never changes
-    // refreshMs > 0: interval handles it
   }, [nodes, bestBlock, refreshMs]);
 
   useEffect(() => {
@@ -178,18 +304,14 @@ const NodesTable: React.FC<NodesTableProps> = ({ nodes, bestBlock, onPin }) => {
   }, [refreshMs]);
 
   // ── Stable row order ──────────────────────────────────────────────────────
-  // Stable display order: array of node IDs.
-  // Only changes when nodes first arrive, new nodes join, or user clicks a column header.
   const [stableOrder, setStableOrder] = useState<string[]>([]);
   const [activeColSort, setActiveColSort] = useState<ColumnSort | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [page, setPage] = useState(0);
 
-  // Always-current nodes ref so sort callbacks don't close over stale data
   const nodesRef = useRef(nodes);
   useEffect(() => { nodesRef.current = nodes; }, [nodes]);
 
-  // Initialise / append to stable order when nodes arrive
   useEffect(() => {
     if (nodes.length === 0) return;
     setStableOrder((prev) => {
@@ -197,7 +319,6 @@ const NodesTable: React.FC<NodesTableProps> = ({ nodes, bestBlock, onPin }) => {
       const incoming = nodes.filter((n) => !existing.has(n.id));
 
       if (prev.length === 0) {
-        // First load: sort alphabetically by node name
         return [...nodes]
           .sort((a, b) =>
             (a.info?.name ?? a.id).localeCompare(b.info?.name ?? b.id, undefined, { numeric: true, sensitivity: 'base' })
@@ -205,9 +326,8 @@ const NodesTable: React.FC<NodesTableProps> = ({ nodes, bestBlock, onPin }) => {
           .map((n) => n.id);
       }
 
-      if (incoming.length === 0) return prev; // Nothing new — keep order unchanged
+      if (incoming.length === 0) return prev;
 
-      // New nodes joined mid-session: append them sorted by name
       const appended = [...incoming].sort((a, b) =>
         (a.info?.name ?? a.id).localeCompare(b.info?.name ?? b.id, undefined, { numeric: true, sensitivity: 'base' })
       );
@@ -215,13 +335,11 @@ const NodesTable: React.FC<NodesTableProps> = ({ nodes, bestBlock, onPin }) => {
     });
   }, [nodes]);
 
-  // Derive the display list from the stable order mapped to displayed (buffered) node data
   const sorted = useMemo(() => {
     const nodeMap = new Map(displayedNodes.map((n) => [n.id, n]));
     const ordered = stableOrder
       .map((id) => nodeMap.get(id))
       .filter((n): n is Node => n !== undefined);
-    // Safety net: nodes not yet in stableOrder appear at the bottom
     const inOrder = new Set(stableOrder);
     const extras = displayedNodes.filter((n) => !inOrder.has(n.id));
     return [...ordered, ...extras];
@@ -232,11 +350,11 @@ const NodesTable: React.FC<NodesTableProps> = ({ nodes, bestBlock, onPin }) => {
     if (!q) return sorted;
     return sorted.filter((n) =>
       (n.info.name || n.id).toLowerCase().includes(q) ||
-      (n.info.node || '').toLowerCase().includes(q)
+      (n.info.node || '').toLowerCase().includes(q) ||
+      (n.info.coinbase || '').toLowerCase().includes(q)
     );
   }, [sorted, searchQuery]);
 
-  // Reset to page 0 when the filtered set changes
   useEffect(() => { setPage(0); }, [searchQuery]);
 
   const totalPages = Math.ceil(filteredNodes.length / PAGE_SIZE);
@@ -245,7 +363,6 @@ const NodesTable: React.FC<NodesTableProps> = ({ nodes, bestBlock, onPin }) => {
     [filteredNodes, page],
   );
 
-  // Column header click: re-sort and lock in the new order
   const handleSort = useCallback(
     (columnPreds: string[]) => {
       let newPreds: string[];
@@ -264,7 +381,6 @@ const NodesTable: React.FC<NodesTableProps> = ({ nodes, bestBlock, onPin }) => {
       }
 
       setActiveColSort({ predicates: columnPreds, dir: newDir });
-      // Re-sort current nodes and lock the result as the new stable order
       const resorted = sortNodes(nodesRef.current, newPreds);
       setStableOrder(resorted.map((n) => n.id));
     },
@@ -272,10 +388,7 @@ const NodesTable: React.FC<NodesTableProps> = ({ nodes, bestBlock, onPin }) => {
   );
 
   const [tooltip, setTooltip] = useState<TooltipState>({
-    visible: false,
-    x: 0,
-    y: 0,
-    html: '',
+    visible: false, x: 0, y: 0, html: '',
   });
   const tooltipTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -317,6 +430,9 @@ const NodesTable: React.FC<NodesTableProps> = ({ nodes, bestBlock, onPin }) => {
     return <span className="ml-1 text-info">{activeColSort.dir === 'asc' ? '↑' : '↓'}</span>;
   };
 
+  // 1 (pin) + visible data columns
+  const colSpan = 1 + visibleCols.size;
+
   return (
     <div
       className="bg-white rounded mb-4"
@@ -332,7 +448,7 @@ const NodesTable: React.FC<NodesTableProps> = ({ nodes, bestBlock, onPin }) => {
           className="text-sm font-semibold px-3 py-1.5 rounded-md border-2 border-blue-400 bg-white text-blue-900 placeholder-blue-300 focus:outline-none focus:border-blue-600"
           style={{ minWidth: 300 }}
         />
-        <div className="flex items-center gap-1" style={{ whiteSpace: 'nowrap' }}>
+        <div className="flex items-center gap-2" style={{ whiteSpace: 'nowrap' }}>
           {REFRESH_OPTIONS.map((opt) => (
             <button
               key={opt.value}
@@ -349,6 +465,65 @@ const NodesTable: React.FC<NodesTableProps> = ({ nodes, bestBlock, onPin }) => {
               {opt.label}
             </button>
           ))}
+
+          {/* Column picker */}
+          <div ref={colPickerRef} style={{ position: 'relative' }}>
+            <button
+              onClick={() => setColPickerOpen((v) => !v)}
+              className="text-xs px-3 py-1 rounded-full transition-colors focus:outline-none"
+              style={{
+                background: colPickerOpen ? '#242c6d' : '#f0f4f8',
+                color: colPickerOpen ? '#fff' : '#6b7280',
+                border: 'none',
+                cursor: 'pointer',
+                fontWeight: colPickerOpen ? 600 : 400,
+              }}
+            >
+              Columns ▾
+            </button>
+            {colPickerOpen && (
+              <div
+                style={{
+                  position: 'absolute',
+                  top: 'calc(100% + 6px)',
+                  right: 0,
+                  background: '#fff',
+                  border: '1px solid #e5e7eb',
+                  borderRadius: 8,
+                  boxShadow: '0 4px 16px rgba(0,0,0,0.12)',
+                  padding: '8px 0',
+                  zIndex: 100,
+                  minWidth: 160,
+                }}
+              >
+                {COLUMNS.map((col) => (
+                  <label
+                    key={col.key}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 8,
+                      padding: '5px 14px',
+                      cursor: 'pointer',
+                      fontSize: 13,
+                      color: '#374151',
+                      userSelect: 'none',
+                    }}
+                    onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = '#f9fafb'; }}
+                    onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = ''; }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={visibleCols.has(col.key)}
+                      onChange={() => toggleCol(col.key)}
+                      style={{ accentColor: '#242c6d', cursor: 'pointer' }}
+                    />
+                    {col.label}
+                  </label>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
@@ -393,9 +568,10 @@ const NodesTable: React.FC<NodesTableProps> = ({ nodes, bestBlock, onPin }) => {
       )}
 
       <div className="table-responsive">
-        <table className="stats-table w-full" style={{ minWidth: 900 }}>
+        <table className="stats-table w-full" style={{ minWidth: 600 }}>
           <thead>
             <tr className="border-b border-gray-100">
+              {/* Pin — always visible */}
               <th
                 className="px-3 py-2 text-left cursor-pointer"
                 onClick={() => handleSort(['-pinned'])}
@@ -405,83 +581,29 @@ const NodesTable: React.FC<NodesTableProps> = ({ nodes, bestBlock, onPin }) => {
               >
                 <SortIcon preds={['-pinned']} />
               </th>
-              <th
-                className="px-3 py-2 text-left cursor-pointer"
-                onClick={() => handleSort(['info.name'])}
-                onMouseEnter={(e) => showHeaderTooltip(e, 'The name reported by the node when it connected.')}
-                onMouseLeave={hideTooltip}
-                onMouseMove={moveTooltip}
-              >
-                Node Name <SortIcon preds={['info.name']} />
-              </th>
-              <th
-                className="px-3 py-2 text-left cursor-pointer"
-                onClick={() => handleSort(['info.node'])}
-                onMouseEnter={(e) => showHeaderTooltip(e, 'Client software and version string reported by the node (e.g. XDCChain/v2.0/linux/go1.21).')}
-                onMouseLeave={hideTooltip}
-                onMouseMove={moveTooltip}
-              >
-                Type <SortIcon preds={['info.node']} />
-              </th>
-              <th
-                className="px-3 py-2 text-right cursor-pointer"
-                onClick={() => handleSort(['stats.latency'])}
-                onMouseEnter={(e) => showHeaderTooltip(e, 'Round-trip time between this server and the node, measured via WebSocket ping every 30 seconds.')}
-                onMouseLeave={hideTooltip}
-                onMouseMove={moveTooltip}
-              >
-                Latency <SortIcon preds={['stats.latency']} />
-              </th>
-              <th
-                className="px-3 py-2 text-right cursor-pointer"
-                onClick={() => handleSort(['-stats.peers'])}
-                onMouseEnter={(e) => showHeaderTooltip(e, 'Number of other nodes this node is currently connected to in the P2P network.')}
-                onMouseLeave={hideTooltip}
-                onMouseMove={moveTooltip}
-              >
-                Peers <SortIcon preds={['-stats.peers']} />
-              </th>
-              <th
-                className="px-3 py-2 text-right cursor-pointer"
-                onClick={() => handleSort(['-stats.pending'])}
-                onMouseEnter={(e) => showHeaderTooltip(e, 'Number of transactions currently waiting in this node\'s mempool to be included in a block.')}
-                onMouseLeave={hideTooltip}
-                onMouseMove={moveTooltip}
-              >
-                Pending <SortIcon preds={['-stats.pending']} />
-              </th>
-              <th
-                className="px-3 py-2 text-right cursor-pointer"
-                onClick={() => handleSort(['-stats.block.number', 'stats.block.propagation'])}
-                onMouseEnter={(e) => showHeaderTooltip(e, 'The latest block number this node has seen, and how long after it was mined that this node received it.')}
-                onMouseLeave={hideTooltip}
-                onMouseMove={moveTooltip}
-              >
-                Last Block <SortIcon preds={['-stats.block.number', 'stats.block.propagation']} />
-              </th>
-              <th
-                className="px-3 py-2 text-left"
-                onMouseEnter={(e) => showHeaderTooltip(e, 'Sparkline showing block propagation times for the last 40 blocks. Taller bars mean slower propagation. Grey bars indicate the block was not received.')}
-                onMouseLeave={hideTooltip}
-                onMouseMove={moveTooltip}
-              >
-                Propagation
-              </th>
-              <th
-                className="px-3 py-2 text-right cursor-pointer"
-                onClick={() => handleSort(['-stats.uptime'])}
-                onMouseEnter={(e) => showHeaderTooltip(e, 'Percentage of time this node has been connected and actively reporting data to the stats server.')}
-                onMouseLeave={hideTooltip}
-                onMouseMove={moveTooltip}
-              >
-                Uptime <SortIcon preds={['-stats.uptime']} />
-              </th>
+
+              {COLUMNS.map((col) => {
+                if (!visibleCols.has(col.key)) return null;
+                const hasPreds = !!col.sortPreds;
+                return (
+                  <th
+                    key={col.key}
+                    className={`px-3 py-2 text-${col.align}${hasPreds ? ' cursor-pointer' : ''}`}
+                    onClick={hasPreds ? () => handleSort(col.sortPreds!) : undefined}
+                    onMouseEnter={(e) => showHeaderTooltip(e, col.tooltip)}
+                    onMouseLeave={hideTooltip}
+                    onMouseMove={moveTooltip}
+                  >
+                    {col.label}{hasPreds && <SortIcon preds={col.sortPreds!} />}
+                  </th>
+                );
+              })}
             </tr>
           </thead>
           <tbody>
             {filteredNodes.length === 0 && (
               <tr>
-                <td colSpan={9} className="text-center text-muted py-8 text-sm">
+                <td colSpan={colSpan} className="text-center text-muted py-8 text-sm">
                   {sorted.length === 0 ? 'Waiting for nodes…' : 'No nodes match your search.'}
                 </td>
               </tr>
@@ -491,6 +613,7 @@ const NodesTable: React.FC<NodesTableProps> = ({ nodes, bestBlock, onPin }) => {
                 key={node.id}
                 node={node}
                 bestBlock={displayedBestBlock}
+                visibleCols={visibleCols}
                 onPin={onPin}
                 onShowTooltip={showTooltip}
                 onHideTooltip={hideTooltip}

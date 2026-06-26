@@ -9,6 +9,7 @@ export interface NodeInfo {
   os: string;
   os_v: string;
   contact: string;
+  coinbase?: string;
 }
 
 export interface NodeBlock {
