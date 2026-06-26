@@ -83,3 +83,35 @@ export interface SortConfig {
   key: string;
   direction: SortDirection;
 }
+
+export interface BootnodeStatus {
+  index: number;
+  enode: string;
+  endpoint: string;
+  tcpEndpoint: string;
+  nodeId: string;
+  healthy: boolean;
+  rttMs?: number;
+  error?: string;
+  errorKind?: string;
+  probes?: number;
+  probeFails?: number;
+  tcpHealthy: boolean;
+  tcpRttMs?: number;
+  tcpError?: string;
+  tcpErrorKind?: string;
+  tcpProbes?: number;
+  tcpProbeFails?: number;
+  checkedAt: string;
+}
+
+export interface BootnodeHealthReport {
+  total: number;
+  healthy: number;
+  unhealthy: number;
+  tcpHealthy: number;
+  tcpUnhealthy: number;
+  checkedAt: string;
+  duration: string;
+  bootnodes: BootnodeStatus[];
+}
