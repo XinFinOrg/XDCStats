@@ -286,7 +286,7 @@ func (h *APIHandler) handleNodePing(conn *Conn, nodeID string, payload json.RawM
 		ClientTime interface{} `json:"clientTime"`
 	}
 	json.Unmarshal(payload, &data)
-	slog.Warn("ws node-ping received, sending node-pong", "node", nodeID, "clientTime", data.ClientTime)
+	slog.Debug("ws node-ping received, sending node-pong", "node", nodeID, "clientTime", data.ClientTime)
 	_ = conn.Emit("node-pong", map[string]interface{}{
 		"clientTime": data.ClientTime,
 		"serverTime": time.Now().UnixMilli(),
@@ -311,7 +311,7 @@ func (h *APIHandler) handleLatency(conn *Conn, nodeID string, payload json.RawMe
 	if id == "" {
 		id = nodeID
 	}
-	slog.Warn("ws latency event received", "node", nodeID, "payload_id", raw.ID, "latency_ms", latency)
+	slog.Debug("ws latency event received", "node", nodeID, "payload_id", raw.ID, "latency_ms", latency)
 	h.nodes.UpdateLatency(id, latency)
 	h.maybeRequestHistory(conn, id)
 }
