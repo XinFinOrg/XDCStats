@@ -2,14 +2,83 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { BootnodeHealthReport, BootnodeStatus } from '../types';
 
 type StatusFilter = 'all' | 'healthy' | 'unhealthy';
+type SortDir = 'asc' | 'desc';
 
-function isFullyHealthy(node: BootnodeStatus): boolean {
-  return node.healthy && node.tcpHealthy;
+type BootnodeSortKey =
+  | 'index'
+  | 'address'
+  | 'udpStatus'
+  | 'udpRtt'
+  | 'tcpStatus'
+  | 'tcpRtt'
+  | 'enode'
+  | 'errors';
+
+interface ColumnSort {
+  key: BootnodeSortKey;
+  dir: SortDir;
 }
 
-function hasAnyIssue(node: BootnodeStatus): boolean {
-  return !node.healthy || !node.tcpHealthy;
+interface ColDef {
+  key: BootnodeSortKey;
+  label: string;
+  align: 'left' | 'right';
+  sortable: boolean;
+  tooltip: string;
 }
+
+const BOOTNODE_COLUMNS: ColDef[] = [
+  { key: 'index', label: '#', align: 'left', sortable: true, tooltip: 'Position in the bootnode list.' },
+  {
+    key: 'address',
+    label: 'Address',
+    align: 'left',
+    sortable: true,
+    tooltip: 'IP address and port used for UDP discv4 and TCP RLPx probes.',
+  },
+  {
+    key: 'udpStatus',
+    label: 'UDP Status',
+    align: 'left',
+    sortable: true,
+    tooltip: 'UDP discv4 ping result (3 probes, healthy when at least 2 succeed).',
+  },
+  {
+    key: 'udpRtt',
+    label: 'UDP RTT',
+    align: 'right',
+    sortable: true,
+    tooltip: 'Round-trip time for the discv4 ping response, in milliseconds.',
+  },
+  {
+    key: 'tcpStatus',
+    label: 'TCP Status',
+    align: 'left',
+    sortable: true,
+    tooltip: 'TCP RLPx handshake result (3 probes, healthy when at least 2 succeed).',
+  },
+  {
+    key: 'tcpRtt',
+    label: 'TCP RTT',
+    align: 'right',
+    sortable: true,
+    tooltip: 'Round-trip time for the TCP RLPx handshake, in milliseconds.',
+  },
+  {
+    key: 'enode',
+    label: 'Enode',
+    align: 'left',
+    sortable: true,
+    tooltip: 'Full enode URL (search matches node ID or IP address). Hover to see full text.',
+  },
+  {
+    key: 'errors',
+    label: 'Errors',
+    align: 'left',
+    sortable: true,
+    tooltip: 'UDP/TCP error messages when a probe failed or timed out. Click to view full text.',
+  },
+];
 
 const PAGE_SIZE_OPTIONS = [10, 15, 25] as const;
 
@@ -19,55 +88,6 @@ interface TooltipState {
   y: number;
   html: string;
 }
-
-const BOOTNODE_COLUMNS: {
-  label: string;
-  align: 'left' | 'right';
-  description: string;
-}[] = [
-  {
-    label: '#',
-    align: 'left',
-    description: 'Position in the bootnode list.',
-  },
-  {
-    label: 'Address',
-    align: 'left',
-    description: 'IP address and port used for UDP discv4 and TCP RLPx probes.',
-  },
-  {
-    label: 'UDP Status',
-    align: 'left',
-    description:
-      'UDP discv4 ping result (3 probes, healthy when at least 2 succeed).',
-  },
-  {
-    label: 'UDP RTT',
-    align: 'right',
-    description: 'Round-trip time for the discv4 ping response, in milliseconds.',
-  },
-  {
-    label: 'TCP Status',
-    align: 'left',
-    description:
-      'TCP RLPx handshake result (3 probes, healthy when at least 2 succeed). Warnings surface protocol mismatches.',
-  },
-  {
-    label: 'TCP RTT',
-    align: 'right',
-    description: 'Round-trip time for the TCP RLPx handshake, in milliseconds.',
-  },
-  {
-    label: 'Enode',
-    align: 'left',
-    description: 'Full enode URL (search matches node ID or IP address).',
-  },
-  {
-    label: 'Errors',
-    align: 'left',
-    description: 'UDP/TCP error messages when a probe failed or timed out.',
-  },
-];
 
 interface BootnodesPanelProps {
   report: BootnodeHealthReport | null;
@@ -80,21 +100,6 @@ interface BootnodesPanelProps {
 
 const STORAGE_KEY = 'xdcstats_bootnodes_collapsed';
 
-function loadCollapsed(): boolean {
-  try {
-    return localStorage.getItem(STORAGE_KEY) === '1';
-  } catch {
-    return false;
-  }
-}
-
-function saveCollapsed(collapsed: boolean) {
-  try {
-    localStorage.setItem(STORAGE_KEY, collapsed ? '1' : '0');
-  } catch {
-    /* ignore */
-  }
-}
 const FILTER_OPTIONS: { value: StatusFilter; label: string }[] = [
   { value: 'all', label: 'All bootnodes' },
   { value: 'healthy', label: 'Healthy only (UDP + TCP)' },
@@ -117,48 +122,35 @@ const selectStyle: React.CSSProperties = {
   backgroundPosition: 'right 8px center',
 };
 
-function statusBadge(healthy: boolean, okLabel: string, errorKind?: string) {
-  if (healthy) {
-    return (
-      <span
-        className="text-xs font-bold uppercase tracking-wide px-2 py-0.5 rounded"
-        style={{ background: '#e8f8ec', color: '#29b348' }}
-      >
-        {okLabel}
-      </span>
-    );
+function loadCollapsed(): boolean {
+  try {
+    return localStorage.getItem(STORAGE_KEY) === '1';
+  } catch {
+    return false;
   }
-  if (errorKind === 'warning') {
-    return (
-      <span
-        className="text-xs font-bold uppercase tracking-wide px-2 py-0.5 rounded"
-        style={{ background: '#fff8e6', color: '#f5b225' }}
-        title="Reachable but degraded"
-      >
-        Warning
-      </span>
-    );
+}
+
+function saveCollapsed(collapsed: boolean) {
+  try {
+    localStorage.setItem(STORAGE_KEY, collapsed ? '1' : '0');
+  } catch {
+    /* ignore */
   }
-  if (errorKind === 'local') {
-    return (
-      <span
-        className="text-xs font-bold uppercase tracking-wide px-2 py-0.5 rounded"
-        style={{ background: '#eef2ff', color: '#4a5fc1' }}
-        title="Probe client error (not the bootnode)"
-      >
-        Probe error
-      </span>
-    );
-  }
-  return (
-    <span
-      className="text-xs font-bold uppercase tracking-wide px-2 py-0.5 rounded"
-      style={{ background: '#fdecea', color: '#e74c3c' }}
-      title="Unreachable"
-    >
-      Unreachable
-    </span>
-  );
+}
+
+function isFullyHealthy(node: BootnodeStatus): boolean {
+  return node.healthy && node.tcpHealthy;
+}
+
+function hasAnyIssue(node: BootnodeStatus): boolean {
+  return !node.healthy || !node.tcpHealthy;
+}
+
+function statusRank(healthy: boolean, errorKind?: string): number {
+  if (healthy) return 0;
+  if (errorKind === 'warning') return 1;
+  if (errorKind === 'local') return 2;
+  return 3;
 }
 
 function formatProbeError(
@@ -188,7 +180,12 @@ function formatErrors(node: BootnodeStatus) {
   if (udp) parts.push(udp);
   if (tcp) parts.push(tcp);
   if (!parts.length) return '–';
-  return parts.join(' · ');
+  return parts.join('\n');
+}
+
+function formatErrorsInline(node: BootnodeStatus) {
+  const text = formatErrors(node);
+  return text === '–' ? text : text.replace(/\n/g, ' · ');
 }
 
 function truncateEnode(enode: string, max = 48) {
@@ -221,92 +218,207 @@ function matchesBootnodeSearch(node: BootnodeStatus, query: string): boolean {
   );
 }
 
-const BootnodeRow: React.FC<{ node: BootnodeStatus }> = ({ node }) => (
-  <tr className="border-b border-gray-50 hover:bg-gray-50 transition-colors">
-    <td className="px-3 py-2">{node.index}</td>
-    <td
-      className="px-3 py-2 font-mono"
-      style={{ color: '#1e2a6e' }}
-      title={addressTitle(node)}
+function compareBootnodes(
+  a: BootnodeStatus,
+  b: BootnodeStatus,
+  key: BootnodeSortKey,
+  dir: SortDir,
+): number {
+  let cmp = 0;
+  switch (key) {
+    case 'index':
+      cmp = a.index - b.index;
+      break;
+    case 'address':
+      cmp = displayAddress(a).localeCompare(displayAddress(b));
+      break;
+    case 'udpStatus':
+      cmp = statusRank(a.healthy, a.errorKind) - statusRank(b.healthy, b.errorKind);
+      break;
+    case 'udpRtt':
+      cmp = (a.rttMs ?? -1) - (b.rttMs ?? -1);
+      break;
+    case 'tcpStatus':
+      cmp =
+        statusRank(a.tcpHealthy, a.tcpErrorKind) -
+        statusRank(b.tcpHealthy, b.tcpErrorKind);
+      break;
+    case 'tcpRtt':
+      cmp = (a.tcpRttMs ?? -1) - (b.tcpRttMs ?? -1);
+      break;
+    case 'enode':
+      cmp = a.enode.localeCompare(b.enode);
+      break;
+    case 'errors':
+      cmp = formatErrorsInline(a).localeCompare(formatErrorsInline(b));
+      break;
+  }
+  return dir === 'asc' ? cmp : -cmp;
+}
+
+function statusBadge(healthy: boolean, okLabel: string, errorKind?: string) {
+  if (healthy) {
+    return (
+      <span
+        className="text-xs font-bold uppercase tracking-wide px-2 py-0.5 rounded"
+        style={{ background: '#e8f8ec', color: '#29b348' }}
+      >
+        {okLabel}
+      </span>
+    );
+  }
+  if (errorKind === 'warning') {
+    return (
+      <span
+        className="text-xs font-bold uppercase tracking-wide px-2 py-0.5 rounded"
+        style={{ background: '#fff8e6', color: '#f5b225' }}
+      >
+        Warning
+      </span>
+    );
+  }
+  if (errorKind === 'local') {
+    return (
+      <span
+        className="text-xs font-bold uppercase tracking-wide px-2 py-0.5 rounded"
+        style={{ background: '#eef2ff', color: '#4a5fc1' }}
+      >
+        Probe error
+      </span>
+    );
+  }
+  return (
+    <span
+      className="text-xs font-bold uppercase tracking-wide px-2 py-0.5 rounded"
+      style={{ background: '#fdecea', color: '#e74c3c' }}
     >
-      {displayAddress(node)}
-    </td>
-    <td className="px-3 py-2">{statusBadge(node.healthy, 'UDP OK', node.errorKind)}</td>
-    <td className="px-3 py-2 text-right">
-      {node.healthy && node.rttMs != null ? `${node.rttMs} ms` : '–'}
-    </td>
-    <td className="px-3 py-2">{statusBadge(node.tcpHealthy, 'TCP OK', node.tcpErrorKind)}</td>
-    <td className="px-3 py-2 text-right">
-      {node.tcpHealthy && node.tcpRttMs != null ? `${node.tcpRttMs} ms` : '–'}
-    </td>
-    <td className="px-3 py-2 font-mono text-muted max-w-xs truncate" title={node.enode}>
-      {truncateEnode(node.enode, 56)}
-    </td>
-    <td className="px-3 py-2 text-muted max-w-[14rem] truncate" title={formatErrors(node)}>
-      {formatErrors(node)}
-    </td>
-  </tr>
-);
+      Unreachable
+    </span>
+  );
+}
 
-function PaginationBar({
-  page,
-  totalPages,
-  total,
-  pageSize,
-  onPageChange,
+function ErrorDetailModal({
+  text,
+  onClose,
 }: {
-  page: number;
-  totalPages: number;
-  total: number;
-  pageSize: number;
-  onPageChange: (page: number) => void;
+  text: string;
+  onClose: () => void;
 }) {
-  if (totalPages <= 1) return null;
-
-  const start = page * pageSize + 1;
-  const end = Math.min((page + 1) * pageSize, total);
-
-  const btnStyle = (disabled: boolean) => ({
-    background: disabled ? '#f0f4f8' : '#242c6d',
-    color: disabled ? '#a1a7cc' : '#fff',
-    border: 'none',
-    cursor: disabled ? 'default' : 'pointer',
-  });
+  const copy = () => {
+    void navigator.clipboard.writeText(text);
+  };
 
   return (
     <div
-      className="flex items-center justify-between px-4 py-2.5 text-xs text-muted"
-      style={{ borderTop: '1px solid #e4eaf0' }}
+      className="fixed inset-0 z-[10000] flex items-center justify-center"
+      style={{ background: 'rgba(0,0,0,0.45)' }}
+      onClick={onClose}
+      role="presentation"
     >
-      <span>
-        {start}–{end} of {total}
-      </span>
-      <div className="flex items-center gap-1">
-        <button
-          type="button"
-          onClick={() => onPageChange(Math.max(0, page - 1))}
-          disabled={page === 0}
-          className="px-2 py-1 rounded focus:outline-none"
-          style={btnStyle(page === 0)}
+      <div
+        className="bg-white rounded-lg m-4 w-full max-w-2xl max-h-[75vh] flex flex-col"
+        style={{ boxShadow: '0 8px 32px rgba(0,0,0,0.2)' }}
+        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="bootnode-error-detail-title"
+      >
+        <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+          <span id="bootnode-error-detail-title" className="font-semibold text-sm" style={{ color: '#2d3b48' }}>
+            Probe errors
+          </span>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={copy}
+              className="text-xs px-3 py-1 rounded-full focus:outline-none"
+              style={{ background: '#f0f4f8', color: '#6b7280', border: 'none', cursor: 'pointer' }}
+            >
+              Copy
+            </button>
+            <button
+              type="button"
+              onClick={onClose}
+              className="text-xs px-3 py-1 rounded-full focus:outline-none"
+              style={{ background: '#242c6d', color: '#fff', border: 'none', cursor: 'pointer' }}
+            >
+              Close
+            </button>
+          </div>
+        </div>
+        <pre
+          className="px-4 py-3 text-xs font-mono overflow-auto flex-1"
+          style={{ color: '#2d3b48', whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}
         >
-          ‹ Prev
-        </button>
-        <span className="px-2">
-          Page {page + 1} / {totalPages}
-        </span>
-        <button
-          type="button"
-          onClick={() => onPageChange(Math.min(totalPages - 1, page + 1))}
-          disabled={page >= totalPages - 1}
-          className="px-2 py-1 rounded focus:outline-none"
-          style={btnStyle(page >= totalPages - 1)}
-        >
-          Next ›
-        </button>
+          {text}
+        </pre>
       </div>
     </div>
   );
 }
+
+interface BootnodeRowProps {
+  node: BootnodeStatus;
+  onShowErrors: (text: string) => void;
+}
+
+const BootnodeRow: React.FC<BootnodeRowProps> = ({ node, onShowErrors }) => {
+  const errorsFull = formatErrors(node);
+  const errorsInline = formatErrorsInline(node);
+  const hasErrors = errorsFull !== '–';
+
+  return (
+    <tr className="border-b border-gray-50 hover:bg-gray-50 transition-colors">
+      <td className="px-3 py-2">{node.index}</td>
+      <td
+        className="px-3 py-2 font-mono"
+        style={{ color: '#1e2a6e' }}
+        title={addressTitle(node)}
+      >
+        {displayAddress(node)}
+      </td>
+      <td className="px-3 py-2">{statusBadge(node.healthy, 'UDP OK', node.errorKind)}</td>
+      <td className="px-3 py-2 text-right font-mono text-sm">
+        {node.healthy && node.rttMs != null ? `${node.rttMs} ms` : '–'}
+      </td>
+      <td className="px-3 py-2">{statusBadge(node.tcpHealthy, 'TCP OK', node.tcpErrorKind)}</td>
+      <td className="px-3 py-2 text-right font-mono text-sm">
+        {node.tcpHealthy && node.tcpRttMs != null ? `${node.tcpRttMs} ms` : '–'}
+      </td>
+      <td className="px-3 py-2">
+        <span
+          className="font-mono text-sm text-muted truncate block"
+          style={{ maxWidth: 280 }}
+          title={node.enode}
+        >
+          {truncateEnode(node.enode, 56)}
+        </span>
+      </td>
+      <td className="px-3 py-2">
+        {hasErrors ? (
+          <button
+            type="button"
+            className="text-sm text-left text-muted hover:text-danger focus:outline-none truncate block"
+            style={{
+              background: 'none',
+              border: 'none',
+              padding: 0,
+              cursor: 'pointer',
+              maxWidth: 220,
+              color: '#e74c3c',
+            }}
+            title="Click to view full errors"
+            onClick={() => onShowErrors(errorsFull)}
+          >
+            {errorsInline}
+          </button>
+        ) : (
+          <span className="text-muted">–</span>
+        )}
+      </td>
+    </tr>
+  );
+};
 
 const BootnodesPanel: React.FC<BootnodesPanelProps> = ({
   report,
@@ -321,6 +433,8 @@ const BootnodesPanel: React.FC<BootnodesPanelProps> = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [pageSize, setPageSize] = useState<number>(PAGE_SIZE_OPTIONS[0]);
   const [collapsed, setCollapsed] = useState(loadCollapsed);
+  const [activeSort, setActiveSort] = useState<ColumnSort>({ key: 'index', dir: 'asc' });
+  const [errorDetail, setErrorDetail] = useState<string | null>(null);
   const [tooltip, setTooltip] = useState<TooltipState>({
     visible: false,
     x: 0,
@@ -368,6 +482,15 @@ const BootnodesPanel: React.FC<BootnodesPanelProps> = ({
     });
   };
 
+  const handleSort = useCallback((key: BootnodeSortKey) => {
+    setActiveSort((prev) => {
+      if (prev.key === key) {
+        return { key, dir: prev.dir === 'asc' ? 'desc' : 'asc' };
+      }
+      return { key, dir: 'asc' };
+    });
+  }, []);
+
   const allNodes = report?.bootnodes ?? [];
 
   const filteredNodes = useMemo(() => {
@@ -381,15 +504,19 @@ const BootnodesPanel: React.FC<BootnodesPanelProps> = ({
         break;
     }
     const q = searchQuery.trim();
-    if (!q) return nodes;
-    return nodes.filter((node) => matchesBootnodeSearch(node, q));
-  }, [allNodes, filter, searchQuery]);
+    if (q) {
+      nodes = nodes.filter((node) => matchesBootnodeSearch(node, q));
+    }
+    return [...nodes].sort((a, b) =>
+      compareBootnodes(a, b, activeSort.key, activeSort.dir),
+    );
+  }, [allNodes, filter, searchQuery, activeSort]);
 
   const totalPages = Math.max(1, Math.ceil(filteredNodes.length / pageSize));
 
   useEffect(() => {
     setPage(0);
-  }, [report?.checkedAt, filter, pageSize, searchQuery, filteredNodes.length]);
+  }, [report?.checkedAt, filter, pageSize, searchQuery, activeSort]);
 
   useEffect(() => {
     if (page >= totalPages) {
@@ -413,25 +540,24 @@ const BootnodesPanel: React.FC<BootnodesPanelProps> = ({
   const allTcpHealthy = total > 0 && tcpHealthy === total;
   const busy = checking || (loading && !report);
 
+  const SortIcon: React.FC<{ colKey: BootnodeSortKey }> = ({ colKey }) => {
+    if (activeSort.key !== colKey) {
+      return <span className="ml-1 opacity-30">↕</span>;
+    }
+    return <span className="ml-1 text-info">{activeSort.dir === 'asc' ? '↑' : '↓'}</span>;
+  };
+
   return (
-    <section className="mt-2 mb-4">
+    <section className="mb-4">
       <div
-        className="bg-white rounded-xl overflow-hidden"
-        style={{
-          boxShadow: '0 1px 3px rgba(0,0,0,0.07), 0 4px 16px rgba(0,0,0,0.05)',
-        }}
+        className="bg-white rounded mb-4"
+        style={{ boxShadow: '1px 0 20px rgba(0,0,0,0.05)' }}
       >
-        <div
-          className="flex flex-wrap items-center justify-between gap-3 px-4 py-3"
-          style={{ borderBottom: collapsed ? 'none' : '1px solid #e4eaf0' }}
-        >
+        <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between gap-3">
           <div className="flex items-center gap-3 min-w-0">
             <p className="header-title mb-0" style={{ whiteSpace: 'nowrap' }}>
               Bootnode Health
             </p>
-            {!collapsed && (
-              <span className="text-xs text-muted hidden sm:inline">UDP discv4 + TCP RLPx</span>
-            )}
             {collapsed && !loading && report && (
               <span
                 className="text-xs font-bold px-2 py-0.5 rounded"
@@ -455,21 +581,22 @@ const BootnodesPanel: React.FC<BootnodesPanelProps> = ({
             )}
           </div>
 
-          <div className="flex items-center gap-3 ml-auto">
+          {!collapsed && (
+            <input
+              type="text"
+              placeholder="Search enode, node ID, or IP…"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="text-sm font-semibold px-3 py-1.5 rounded-md border-2 border-blue-400 bg-white text-blue-900 placeholder-blue-300 focus:outline-none focus:border-blue-600"
+              style={{ minWidth: 300 }}
+              aria-label="Search bootnodes"
+            />
+          )}
+
+          <div className="flex items-center gap-2" style={{ whiteSpace: 'nowrap' }}>
             {!collapsed && (
               <>
-                <input
-                  type="text"
-                  placeholder="Search enode, node ID, or IP…"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="text-sm font-semibold px-3 py-1.5 rounded-md border-2 border-blue-400 bg-white text-blue-900 placeholder-blue-300 focus:outline-none focus:border-blue-600"
-                  style={{ minWidth: 220, maxWidth: 320 }}
-                  aria-label="Search bootnodes"
-                />
-
                 <label className="flex items-center gap-2 text-xs text-muted">
-                  <span className="font-semibold uppercase tracking-wide">Show</span>
                   <select
                     value={filter}
                     onChange={(e) => setFilter(e.target.value as StatusFilter)}
@@ -485,7 +612,6 @@ const BootnodesPanel: React.FC<BootnodesPanelProps> = ({
                 </label>
 
                 <label className="flex items-center gap-2 text-xs text-muted">
-                  <span className="font-semibold uppercase tracking-wide">Per page</span>
                   <select
                     value={pageSize}
                     onChange={(e) => setPageSize(Number(e.target.value))}
@@ -494,7 +620,7 @@ const BootnodesPanel: React.FC<BootnodesPanelProps> = ({
                   >
                     {PAGE_SIZE_OPTIONS.map((n) => (
                       <option key={n} value={n}>
-                        {n}
+                        {n} / page
                       </option>
                     ))}
                   </select>
@@ -506,11 +632,13 @@ const BootnodesPanel: React.FC<BootnodesPanelProps> = ({
               type="button"
               onClick={onCheckNow}
               disabled={busy}
-              className="text-xs font-bold uppercase tracking-wide px-3 py-1.5 rounded focus:outline-none"
+              className="text-xs px-3 py-1 rounded-full transition-colors focus:outline-none"
               style={{
-                background: busy ? '#e4eaf0' : '#242c6d',
+                background: busy ? '#f0f4f8' : '#242c6d',
                 color: busy ? '#a1a7cc' : '#fff',
+                border: 'none',
                 cursor: busy ? 'default' : 'pointer',
+                fontWeight: 600,
               }}
             >
               {checking ? 'Checking…' : 'Check now'}
@@ -519,135 +647,173 @@ const BootnodesPanel: React.FC<BootnodesPanelProps> = ({
             <button
               type="button"
               onClick={toggleCollapsed}
-              className="flex items-center justify-center focus:outline-none shrink-0"
+              className="text-xs px-3 py-1 rounded-full focus:outline-none"
               style={{
-                background: 'none',
+                background: '#f0f4f8',
+                color: '#6b7280',
                 border: 'none',
                 cursor: 'pointer',
-                padding: '4px 2px',
-                color: '#a1a7cc',
-                fontSize: 11,
-                lineHeight: 1,
-                transform: collapsed ? 'rotate(-90deg)' : 'rotate(0deg)',
-                transition: 'transform 0.15s ease',
               }}
               aria-expanded={!collapsed}
               aria-label={collapsed ? 'Expand bootnode health' : 'Collapse bootnode health'}
             >
-              ▾
+              {collapsed ? 'Show ▾' : 'Hide ▴'}
             </button>
           </div>
         </div>
 
         {!collapsed && (
           <>
-        <div
-          className="flex flex-wrap items-center gap-4 px-6 py-3 text-xs"
-          style={{ borderBottom: '1px solid #e4eaf0', background: '#f7f9fb' }}
-        >
-          {loading && !report ? (
-            <span className="text-muted">Waiting for first bootnode check…</span>
-          ) : (
-            <>
-              <span>
-                <span className="text-muted">UDP </span>
-                <span
-                  className="font-bold"
-                  style={{ color: allUdpHealthy ? '#29b348' : healthy > 0 ? '#f5b225' : '#e74c3c' }}
-                >
-                  {healthy}
-                </span>
-                <span className="text-muted">/{total}</span>
-              </span>
-              <span>
-                <span className="text-muted">TCP </span>
-                <span
-                  className="font-bold"
-                  style={{
-                    color: allTcpHealthy ? '#29b348' : tcpHealthy > 0 ? '#f5b225' : '#e74c3c',
-                  }}
-                >
-                  {tcpHealthy}
-                </span>
-                <span className="text-muted">/{total}</span>
-              </span>
-              {filter !== 'all' && (
-                <span className="text-muted">
-                  Showing {filteredNodes.length} filtered
-                </span>
-              )}
-              {searchQuery.trim() && (
-                <span className="text-muted">
-                  Search: {filteredNodes.length} match{filteredNodes.length === 1 ? '' : 'es'}
-                </span>
-              )}
-              {report?.checkedAt && (
-                <span className="text-muted" title={report.checkedAt}>
-                  Last check: {new Date(report.checkedAt).toLocaleString()}
-                </span>
-              )}
-              {report?.duration && (
-                <span className="text-muted">({report.duration})</span>
-              )}
-            </>
-          )}
-          {error && <span style={{ color: '#e74c3c' }}>{error}</span>}
-        </div>
-
-        <div className="table-responsive">
-          <table className="stats-table w-full" style={{ minWidth: 860 }}>
-            <thead>
-              <tr className="border-b border-gray-100">
-                {BOOTNODE_COLUMNS.map((col) => (
-                  <th
-                    key={col.label}
-                    className={`px-3 py-2 ${col.align === 'right' ? 'text-right' : 'text-left'}`}
-                    onMouseEnter={(e) => showHeaderTooltip(e, col.description)}
-                    onMouseLeave={hideTooltip}
-                    onMouseMove={moveTooltip}
-                  >
-                    {col.label}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {pagedNodes.length ? (
-                pagedNodes.map((node) => (
-                  <BootnodeRow key={`${node.index}-${node.endpoint}`} node={node} />
-                ))
+            <div
+              className="flex flex-wrap items-center gap-4 px-4 py-2 border-b border-gray-100 text-xs text-muted"
+            >
+              {loading && !report ? (
+                <span>Waiting for first bootnode check…</span>
               ) : (
-                <tr>
-                  <td colSpan={BOOTNODE_COLUMNS.length} className="text-center text-muted py-8 text-sm">
-                    {busy
-                      ? 'Running bootnode check…'
-                      : searchQuery.trim()
-                        ? 'No bootnodes match your search.'
-                        : filter === 'all'
-                          ? 'No bootnode results yet'
-                          : 'No bootnodes match this filter'}
-                  </td>
-                </tr>
+                <>
+                  <span>
+                    <span className="text-muted">UDP </span>
+                    <span
+                      className="font-bold"
+                      style={{ color: allUdpHealthy ? '#29b348' : healthy > 0 ? '#f5b225' : '#e74c3c' }}
+                    >
+                      {healthy}
+                    </span>
+                    <span className="text-muted">/{total}</span>
+                  </span>
+                  <span>
+                    <span className="text-muted">TCP </span>
+                    <span
+                      className="font-bold"
+                      style={{
+                        color: allTcpHealthy ? '#29b348' : tcpHealthy > 0 ? '#f5b225' : '#e74c3c',
+                      }}
+                    >
+                      {tcpHealthy}
+                    </span>
+                    <span className="text-muted">/{total}</span>
+                  </span>
+                  {filter !== 'all' && <span>Showing {filteredNodes.length} filtered</span>}
+                  {searchQuery.trim() && (
+                    <span>
+                      Search: {filteredNodes.length} match{filteredNodes.length === 1 ? '' : 'es'}
+                    </span>
+                  )}
+                  {report?.checkedAt && (
+                    <span title={report.checkedAt}>
+                      Last check: {new Date(report.checkedAt).toLocaleString()}
+                    </span>
+                  )}
+                  {report?.duration && <span>({report.duration})</span>}
+                </>
               )}
-            </tbody>
-          </table>
-        </div>
+              {error && <span style={{ color: '#e74c3c' }}>{error}</span>}
+            </div>
 
-        <PaginationBar
-          page={page}
-          totalPages={totalPages}
-          total={filteredNodes.length}
-          pageSize={pageSize}
-          onPageChange={setPage}
-        />
+            {totalPages > 1 && (
+              <div className="flex items-center justify-between px-4 py-2 border-b border-gray-100 text-xs text-muted">
+                <span>
+                  {page * pageSize + 1}–{Math.min((page + 1) * pageSize, filteredNodes.length)} of{' '}
+                  {filteredNodes.length} bootnodes
+                </span>
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => setPage((p) => Math.max(0, p - 1))}
+                    disabled={page === 0}
+                    className="px-2 py-1 rounded focus:outline-none"
+                    style={{
+                      background: page === 0 ? '#f0f4f8' : '#242c6d',
+                      color: page === 0 ? '#a1a7cc' : '#fff',
+                      border: 'none',
+                      cursor: page === 0 ? 'default' : 'pointer',
+                    }}
+                  >
+                    ‹ Prev
+                  </button>
+                  <span className="px-2">
+                    Page {page + 1} / {totalPages}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
+                    disabled={page >= totalPages - 1}
+                    className="px-2 py-1 rounded focus:outline-none"
+                    style={{
+                      background: page >= totalPages - 1 ? '#f0f4f8' : '#242c6d',
+                      color: page >= totalPages - 1 ? '#a1a7cc' : '#fff',
+                      border: 'none',
+                      cursor: page >= totalPages - 1 ? 'default' : 'pointer',
+                    }}
+                  >
+                    Next ›
+                  </button>
+                </div>
+              </div>
+            )}
 
-        {tooltip.visible && (
-          <div
-            className="node-tooltip"
-            style={{ left: tooltip.x, top: tooltip.y }}
-            dangerouslySetInnerHTML={{ __html: tooltip.html }}
-          />
-        )}
+            <div className="table-responsive">
+              <table className="stats-table w-full" style={{ minWidth: 860 }}>
+                <thead>
+                  <tr className="border-b border-gray-100">
+                    {BOOTNODE_COLUMNS.map((col) => (
+                      <th
+                        key={col.key}
+                        className={`px-3 py-2 text-${col.align}${col.sortable ? ' cursor-pointer' : ''}`}
+                        onClick={col.sortable ? () => handleSort(col.key) : undefined}
+                        onMouseEnter={(e) => showHeaderTooltip(e, col.tooltip)}
+                        onMouseLeave={hideTooltip}
+                        onMouseMove={moveTooltip}
+                      >
+                        {col.label}
+                        {col.sortable && <SortIcon colKey={col.key} />}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {pagedNodes.length ? (
+                    pagedNodes.map((node) => (
+                      <BootnodeRow
+                        key={`${node.index}-${node.endpoint}`}
+                        node={node}
+                        onShowErrors={setErrorDetail}
+                      />
+                    ))
+                  ) : (
+                    <tr>
+                      <td
+                        colSpan={BOOTNODE_COLUMNS.length}
+                        className="text-center text-muted py-8 text-sm"
+                      >
+                        {busy
+                          ? 'Running bootnode check…'
+                          : searchQuery.trim()
+                            ? 'No bootnodes match your search.'
+                            : filter === 'all'
+                              ? 'No bootnode results yet'
+                              : 'No bootnodes match this filter'}
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            {tooltip.visible && (
+              <div
+                className="node-tooltip"
+                style={{ left: tooltip.x, top: tooltip.y }}
+                dangerouslySetInnerHTML={{ __html: tooltip.html }}
+              />
+            )}
+
+            {errorDetail && (
+              <ErrorDetailModal
+                text={errorDetail}
+                onClose={() => setErrorDetail(null)}
+              />
+            )}
           </>
         )}
       </div>
