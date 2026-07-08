@@ -3,7 +3,7 @@ module github.com/XinFinOrg/XDCStats/backend
 go 1.25
 
 require (
-	github.com/XinFinOrg/XDPoSChain v1.6.1-0.20260621231742-90647d00de10
+	github.com/XinFinOrg/XDPoSChain v1.6.1-0.20260707074157-2a328db76ad4
 	github.com/gin-gonic/gin v1.10.0
 	github.com/gorilla/websocket v1.5.3
 	github.com/oschwald/geoip2-golang v1.11.0
@@ -23,8 +23,9 @@ require (
 	github.com/go-playground/locales v0.14.1 // indirect
 	github.com/go-playground/universal-translator v0.18.1 // indirect
 	github.com/go-playground/validator/v10 v10.20.0 // indirect
-	github.com/goccy/go-json v0.10.2 // indirect
+	github.com/goccy/go-json v0.10.5 // indirect
 	github.com/golang/snappy v0.0.5-0.20220116011046-fa5810519dcb // indirect
+	github.com/hashicorp/golang-lru v1.0.2 // indirect
 	github.com/holiman/uint256 v1.3.2 // indirect
 	github.com/huin/goupnp v1.3.0 // indirect
 	github.com/jackpal/go-nat-pmp v1.0.2 // indirect

@@ -14,7 +14,7 @@ var ErrTimeout = discover.ErrTimeout
 
 // Client sends XDC discv4 pings via the XDPoSChain discovery protocol.
 type Client struct {
-	tab  *discover.Table
+	tab  *discover.UDPv4
 	conn *net.UDPConn
 	db   *enode.DB
 }
