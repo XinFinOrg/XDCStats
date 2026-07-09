@@ -120,6 +120,9 @@ if [ "$confirm" != "Y" ] && [ "$confirm" != "y" ]; then
 fi
 
 # ── start ─────────────────────────────────────────────────────────────────────
+printf "\n  Pulling latest images…\n"
+docker compose -f "$REPO_ROOT/docker-compose.yml" pull
+
 printf "\n  Starting XDCStats (%s)…\n\n" "$ENV_NAME"
 
 if docker compose -f "$REPO_ROOT/docker-compose.yml" up -d; then

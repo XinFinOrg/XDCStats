@@ -1,6 +1,6 @@
 services:
   backend:
-    image: xinfinorg/xdcstats-backend:acbc983
+    image: xinfinorg/xdcstats-backend:latest
     restart: unless-stopped
     ports:
       - "2000:2000"
@@ -14,7 +14,7 @@ services:
       LOG_LEVEL: ${LOG_LEVEL:-info}
 
   frontend:
-    image: xinfinorg/xdcstats-frontend:acbc983
+    image: xinfinorg/xdcstats-frontend:latest
     restart: unless-stopped
     ports:
       - "32001:32001"
