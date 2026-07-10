@@ -291,7 +291,11 @@ const NodesTable: React.FC<NodesTableProps> = ({ nodes, bestBlock, onPin }) => {
     if (refreshMs === 0) {
       setDisplayedNodes(nodes);
       setDisplayedBestBlock(bestBlock);
+      return;
     }
+    // Show the first snapshot immediately; later updates follow the refresh interval.
+    setDisplayedNodes((prev) => (prev.length === 0 && nodes.length > 0 ? nodes : prev));
+    setDisplayedBestBlock((prev) => (prev === 0 && bestBlock > 0 ? bestBlock : prev));
   }, [nodes, bestBlock, refreshMs]);
 
   useEffect(() => {

@@ -21,6 +21,7 @@ import (
 	"github.com/XinFinOrg/XDCStats/backend/internal/api"
 	"github.com/XinFinOrg/XDCStats/backend/internal/collection"
 	"github.com/XinFinOrg/XDCStats/backend/internal/db"
+	"github.com/XinFinOrg/XDCStats/backend/internal/discv4"
 	"github.com/XinFinOrg/XDCStats/backend/internal/geoip"
 	"github.com/XinFinOrg/XDCStats/backend/internal/service"
 	"github.com/XinFinOrg/XDCStats/backend/internal/ws"
@@ -60,6 +61,26 @@ func main() {
 	r.Use(gzipMiddleware())
 
 	handler := api.NewHandler(nodes, cfg.AdminSecret)
+
+	var bootnodeChecker *service.BootnodeChecker
+	if cfg.EnableBootnodeHealth {
+		loader := func() ([]*discv4.Node, error) {
+			return service.LoadBootnodes(cfg)
+		}
+		bootnodeChecker = service.NewBootnodeChecker(loader, cfg.BootnodeTimeout, cfg.BootnodeParallel)
+		bootCtx, bootCancel := context.WithCancel(context.Background())
+		defer bootCancel()
+		go bootnodeChecker.Run(bootCtx, cfg.BootnodeInterval)
+
+		bh := api.NewBootnodeHandler(bootnodeChecker, cfg.AdminSecret)
+		handler.BootnodesHealth = bh.Health
+		handler.BootnodesCheck = bh.Check
+
+		slog.Info("bootnode health enabled",
+			"network", cfg.BootnodeNetwork,
+			"interval", cfg.BootnodeInterval,
+		)
+	}
 
 	// Forensics (optional)
 	if cfg.EnableForensics {
@@ -137,7 +158,7 @@ func requestLogger() gin.HandlerFunc {
 func corsMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		c.Header("Access-Control-Allow-Origin", "*")
-		c.Header("Access-Control-Allow-Methods", "GET, OPTIONS")
+		c.Header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
 		c.Header("Access-Control-Allow-Headers", "Content-Type, x-api-secret")
 		if c.Request.Method == http.MethodOptions {
 			c.AbortWithStatus(http.StatusNoContent)
