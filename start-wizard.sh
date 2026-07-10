@@ -91,15 +91,52 @@ esac
 
 export VITE_API_URL
 
+# ── port selection ────────────────────────────────────────────────────────────
+is_valid_port() {
+    [[ "$1" =~ ^[0-9]+$ ]] && [ "$1" -ge 1 ] && [ "$1" -le 65535 ]
+}
+
+printf "\n"
+printf "  Select ports (press Enter to accept the default):\n"
+printf "\n"
+
+while true; do
+    read -rp "  Backend port [2000]: " BACKEND_PORT </dev/tty || BACKEND_PORT=""
+    BACKEND_PORT="${BACKEND_PORT:-2000}"
+    if is_valid_port "$BACKEND_PORT"; then
+        break
+    fi
+    printf "  ${RED}Invalid port:${NC} '%s'. Enter a number between 1 and 65535.\n" "$BACKEND_PORT"
+done
+
+while true; do
+    read -rp "  Frontend port [32001]: " FRONTEND_PORT </dev/tty || FRONTEND_PORT=""
+    FRONTEND_PORT="${FRONTEND_PORT:-32001}"
+    if ! is_valid_port "$FRONTEND_PORT"; then
+        printf "  ${RED}Invalid port:${NC} '%s'. Enter a number between 1 and 65535.\n" "$FRONTEND_PORT"
+        continue
+    fi
+    if [ "$FRONTEND_PORT" = "$BACKEND_PORT" ]; then
+        printf "  ${RED}Error:${NC} frontend port must differ from backend port (%s).\n" "$BACKEND_PORT"
+        continue
+    fi
+    break
+done
+
+export BACKEND_PORT
+export FRONTEND_PORT
+
 # ── preview ───────────────────────────────────────────────────────────────────
 printf "\n"
 printf "  ${BOLD}${BLUE}Configuration — %s${NC}\n" "$ENV_NAME"
 printf "  %s\n" "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
 printf "\n  ${DIM}Frontend${NC}\n"
+printf "  ${CYAN}%-24s${NC}  ${GREEN}%s${NC}\n" "FRONTEND_PORT"    "$FRONTEND_PORT"
 printf "  ${CYAN}%-24s${NC}  ${GREEN}%s${NC}\n" "VITE_API_URL"     "$VITE_API_URL"
 
 printf "\n  ${DIM}Backend${NC}\n"
+printf "  ${CYAN}%-24s${NC}  ${GREEN}%s${NC}\n" "BACKEND_PORT"     "$BACKEND_PORT"
 printf "  ${CYAN}%-24s${NC}  ${GREEN}%s${NC}\n" "PORT"             "${PORT:-2000}"
 printf "  ${CYAN}%-24s${NC}  ${GREEN}%s${NC}\n" "WS_SECRET"        "${WS_SECRET:-xinfin_xdpos_hybrid_network_stats}"
 printf "  ${CYAN}%-24s${NC}  ${GREEN}%s${NC}\n" "ADMIN_SECRET"     "${ADMIN_SECRET:-(empty — admin routes disabled)}"
@@ -128,8 +165,8 @@ printf "\n  Starting XDCStats (%s)…\n\n" "$ENV_NAME"
 if docker compose -f "$REPO_ROOT/docker-compose.yml" up -d; then
     printf "\n"
     printf "  ${GREEN}${BOLD}Started!${NC}\n"
-    printf "  ${CYAN}Frontend${NC} → http://localhost:32001\n"
-    printf "  ${CYAN}Backend${NC}  → http://localhost:2000\n"
+    printf "  ${CYAN}Frontend${NC} → http://localhost:%s\n" "$FRONTEND_PORT"
+    printf "  ${CYAN}Backend${NC}  → http://localhost:%s\n" "$BACKEND_PORT"
     printf "\n"
     printf "  ${DIM}Logs:  docker compose logs -f${NC}\n"
     printf "  ${DIM}Stop:  docker compose down${NC}\n"

@@ -3,7 +3,7 @@ services:
     image: xinfinorg/xdcstats-backend:latest
     restart: unless-stopped
     ports:
-      - "2000:2000"
+      - "${BACKEND_PORT:-2000}:2000"
     environment:
       PORT: "2000"
       WS_SECRET: ${WS_SECRET:-xinfin_xdpos_hybrid_network_stats}
@@ -17,7 +17,7 @@ services:
     image: xinfinorg/xdcstats-frontend:latest
     restart: unless-stopped
     ports:
-      - "32001:32001"
+      - "${FRONTEND_PORT:-32001}:32001"
     environment:
       VITE_API_URL: ${VITE_API_URL:-http://154.38.175.218:32011}
     depends_on:
