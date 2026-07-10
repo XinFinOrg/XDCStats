@@ -18,6 +18,7 @@ type Config struct {
 
 	EnableBootnodeHealth bool
 	BootnodeNetwork      string
+	BootnodeListFile     string
 	BootnodeInterval     time.Duration
 	BootnodeTimeout      time.Duration
 	BootnodeParallel     int
@@ -82,6 +83,7 @@ func Load() *Config {
 
 		EnableBootnodeHealth: enableBootnodeHealth,
 		BootnodeNetwork:      bootnodeNetwork,
+		BootnodeListFile:     os.Getenv("BOOTNODE_LIST_FILE"),
 		BootnodeInterval:     bootnodeInterval,
 		BootnodeTimeout:      bootnodeTimeout,
 		BootnodeParallel:     bootnodeParallel,

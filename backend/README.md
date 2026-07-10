@@ -35,6 +35,7 @@ Copy `.env_sample` to `.env` and fill in the values.
 | `VERBOSITY` | `1` | Log verbosity level |
 | `ENABLE_BOOTNODE_HEALTH` | `true` | Set to `false` to disable bootnode UDP/TCP probes |
 | `BOOTNODE_NETWORK` | `mainnet` | Network for bootnode probes (`mainnet`, `testnet`, or `devnet`) |
+| `BOOTNODE_LIST_FILE` | _(unset)_ | Local `bootnodes.list` path; overrides `BOOTNODE_NETWORK` when set |
 | `BOOTNODE_CHECK_INTERVAL` | `60` | Seconds between automatic bootnode health checks |
 | `BOOTNODE_CHECK_TIMEOUT` | `5` | Per-check timeout in seconds |
 | `BOOTNODE_CHECK_PARALLEL` | `8` | Parallel workers for bootnode probes |

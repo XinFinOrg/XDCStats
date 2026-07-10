@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 )
@@ -15,6 +16,16 @@ const (
 	// TestnetBootnodesURL is the official XDC testnet (Apothem) bootnode list in XinFin-Node.
 	TestnetBootnodesURL = "https://raw.githubusercontent.com/XinFinOrg/XinFin-Node/master/testnet/bootnodes.list"
 )
+
+// LoadNodesFromFile reads and parses a local bootnodes.list file.
+func LoadNodesFromFile(path string) ([]*Node, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, fmt.Errorf("open %s: %w", path, err)
+	}
+	defer f.Close()
+	return parseNodes(f, path)
+}
 
 // LoadNodesFromURL fetches and parses a bootnodes.list file from url.
 func LoadNodesFromURL(url string) ([]*Node, error) {

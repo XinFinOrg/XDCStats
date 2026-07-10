@@ -33,10 +33,13 @@ func loadDevnetBootnodes() ([]*discv4.Node, error) {
 	return []*discv4.Node{n}, nil
 }
 
-// LoadBootnodes loads bootnodes from the XinFin-Node GitHub list for the configured network.
+// LoadBootnodes loads bootnodes from BOOTNODE_LIST_FILE, devnet defaults, or XinFin-Node GitHub lists.
 func LoadBootnodes(cfg *config.Config) ([]*discv4.Node, error) {
 	if !cfg.EnableBootnodeHealth {
 		return nil, fmt.Errorf("bootnode health disabled")
+	}
+	if path := strings.TrimSpace(cfg.BootnodeListFile); path != "" {
+		return discv4.LoadNodesFromFile(path)
 	}
 	if strings.EqualFold(strings.TrimSpace(cfg.BootnodeNetwork), "devnet") {
 		return loadDevnetBootnodes()

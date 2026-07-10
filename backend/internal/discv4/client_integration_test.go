@@ -4,7 +4,6 @@ package discv4
 
 import (
 	"testing"
-	"time"
 )
 
 func TestPingLiveBootnode(t *testing.T) {
@@ -19,7 +18,7 @@ func TestPingLiveBootnode(t *testing.T) {
 	}
 	defer client.Close()
 
-	rtt, err := client.Ping(n, 5*time.Second)
+	rtt, err := client.Ping(n)
 	if err != nil {
 		t.Fatal(err)
 	}

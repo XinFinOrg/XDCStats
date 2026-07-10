@@ -11,6 +11,7 @@ import {
   upTimeFilter,
   upTimeClass,
   timeClass,
+  xssFilter,
 } from './utils/filters';
 
 import StatCard from './components/StatCard';
@@ -107,8 +108,9 @@ const App: React.FC = () => {
     (rawNodes: Node[], charts: ChartsData) => {
       const currentPinned = pinnedIdsRef.current;
       const prevMap = new Map(nodesRef.current.map((n) => [n.id, n]));
+      const sanitizedNodes = xssFilter(rawNodes) as Node[];
 
-      const initialized: Node[] = (rawNodes as Node[]).map((node) => {
+      const initialized: Node[] = sanitizedNodes.map((node) => {
         const n: Node = {
           ...node,
           history: node.history ?? Array(40).fill(-1),
