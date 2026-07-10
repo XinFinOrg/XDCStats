@@ -33,6 +33,22 @@ Copy `.env_sample` to `.env` and fill in the values.
 | `MONGODBURL` | `localhost:27017` | MongoDB host:port |
 | `MASTERNODE_URL` | `https://master.xinfin.network/api` | Masternode API base URL |
 | `VERBOSITY` | `1` | Log verbosity level |
+| `ENABLE_BOOTNODE_HEALTH` | `true` | Set to `false` to disable bootnode UDP/TCP probes |
+| `BOOTNODE_NETWORK` | `mainnet` | Network for bootnode probes (`mainnet`, `testnet`, or `devnet`) |
+| `BOOTNODE_LIST_FILE` | _(unset)_ | Local `bootnodes.list` path; overrides `BOOTNODE_NETWORK` when set |
+| `BOOTNODE_CHECK_INTERVAL` | `60` | Seconds between automatic bootnode health checks |
+| `BOOTNODE_CHECK_TIMEOUT` | `5` | Per-check timeout in seconds |
+| `BOOTNODE_CHECK_PARALLEL` | `8` | Parallel workers for bootnode probes |
+
+Bootnode lists default to the official XinFin-Node files on GitHub:
+
+- Mainnet: [mainnet/bootnodes.list](https://github.com/XinFinOrg/XinFin-Node/blob/master/mainnet/bootnodes.list)
+- Testnet: [testnet/bootnodes.list](https://github.com/XinFinOrg/XinFin-Node/blob/master/testnet/bootnodes.list)
+- Devnet: hardcoded placeholder in `internal/service/bootnode_load.go` (`TODO` — update IP/enode when official devnet bootnodes are available)
+
+The list is re-fetched from GitHub before each health check so updates in XinFin-Node are picked up automatically.
+
+Bootnode UDP/TCP probes depend on [XDPoSChain](https://github.com/XinFinOrg/XDPoSChain) `feat/discv4-ping-export` (pinned as `v1.6.1-0.20260621231742-90647d00de10` in `go.mod`).
 
 ---
 

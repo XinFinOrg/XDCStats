@@ -12,6 +12,11 @@ services:
       MONGODBURL: ${MONGODBURL:-localhost:27017}
       MASTERNODE_URL: ${MASTERNODE_URL:-https://master.xinfin.network/api}
       LOG_LEVEL: ${LOG_LEVEL:-info}
+      ENABLE_BOOTNODE_HEALTH: ${ENABLE_BOOTNODE_HEALTH:-true}
+      BOOTNODE_NETWORK: ${BOOTNODE_NETWORK:-mainnet}
+      BOOTNODE_CHECK_INTERVAL: ${BOOTNODE_CHECK_INTERVAL:-60}
+      BOOTNODE_CHECK_TIMEOUT: ${BOOTNODE_CHECK_TIMEOUT:-5}
+      BOOTNODE_CHECK_PARALLEL: ${BOOTNODE_CHECK_PARALLEL:-8}
 
   frontend:
     image: xinfinorg/xdcstats-frontend:latest

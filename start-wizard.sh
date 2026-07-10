@@ -90,6 +90,7 @@ case "$ENV_NAME" in
 esac
 
 export VITE_API_URL
+export BOOTNODE_NETWORK="$ENV_NAME"
 
 # ── preview ───────────────────────────────────────────────────────────────────
 printf "\n"
@@ -106,6 +107,7 @@ printf "  ${CYAN}%-24s${NC}  ${GREEN}%s${NC}\n" "ADMIN_SECRET"     "${ADMIN_SECR
 printf "  ${CYAN}%-24s${NC}  ${GREEN}%s${NC}\n" "ENABLE_FORENSICS" "${ENABLE_FORENSICS:-false}"
 printf "  ${CYAN}%-24s${NC}  ${GREEN}%s${NC}\n" "MONGODBURL"       "${MONGODBURL:-localhost:27017}"
 printf "  ${CYAN}%-24s${NC}  ${GREEN}%s${NC}\n" "MASTERNODE_URL"   "${MASTERNODE_URL:-https://master.xinfin.network/api}"
+printf "  ${CYAN}%-24s${NC}  ${GREEN}%s${NC}\n" "BOOTNODE_NETWORK" "${BOOTNODE_NETWORK:-mainnet}"
 printf "  ${CYAN}%-24s${NC}  ${GREEN}%s${NC}\n" "LOG_LEVEL"        "${LOG_LEVEL:-info}"
 
 printf "\n  ${DIM}Override any value by exporting it before running this script.${NC}\n"

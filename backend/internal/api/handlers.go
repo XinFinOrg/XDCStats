@@ -32,10 +32,13 @@ type Handler struct {
 	nodes       *collection.Collection
 	adminSecret string
 	// forensics handlers set by main when ENABLE_FORENSICS=true
-	ForensicsReports       func(c *gin.Context)
-	ForensicsDetail        func(c *gin.Context)
-	ForensicsLatest        func(c *gin.Context)
-	ForensicsMasternode    func(c *gin.Context)
+	ForensicsReports    func(c *gin.Context)
+	ForensicsDetail     func(c *gin.Context)
+	ForensicsLatest     func(c *gin.Context)
+	ForensicsMasternode func(c *gin.Context)
+	// bootnode handlers set by main when ENABLE_BOOTNODE_HEALTH=true
+	BootnodesHealth func(c *gin.Context)
+	BootnodesCheck  func(c *gin.Context)
 }
 
 func NewHandler(nodes *collection.Collection, adminSecret string) *Handler {

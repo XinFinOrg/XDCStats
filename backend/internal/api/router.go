@@ -15,6 +15,13 @@ func SetupRouter(r *gin.Engine, h *Handler) {
 		v2.GET("/coinbase_info", h.CoinbaseInfo)
 		v2.GET("/history", h.HistoryMetric)
 
+		v2.GET("/bootnodes/health", bootnodeGuard(h, func(c *gin.Context) {
+			h.BootnodesHealth(c)
+		}))
+		v2.POST("/bootnodes/check", bootnodeGuard(h, func(c *gin.Context) {
+			h.BootnodesCheck(c)
+		}))
+
 		// Forensics routes — handlers are nil if forensics disabled; middleware guards them.
 		v2.GET("/forensics/masternode", forensicsGuard(h, func(c *gin.Context) {
 			h.ForensicsMasternode(c)
@@ -28,6 +35,16 @@ func SetupRouter(r *gin.Engine, h *Handler) {
 		v2.GET("/forensics/load/latest", forensicsGuard(h, func(c *gin.Context) {
 			h.ForensicsLatest(c)
 		}))
+	}
+}
+
+func bootnodeGuard(h *Handler, next gin.HandlerFunc) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if h.BootnodesHealth == nil {
+			c.JSON(503, gin.H{"error": "bootnode health not enabled"})
+			return
+		}
+		next(c)
 	}
 }
 

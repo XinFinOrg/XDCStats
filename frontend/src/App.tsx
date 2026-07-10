@@ -11,6 +11,7 @@ import {
   upTimeFilter,
   upTimeClass,
   timeClass,
+  xssFilter,
 } from './utils/filters';
 
 import StatCard from './components/StatCard';
@@ -20,6 +21,8 @@ import HistoryModal, { type HistoryMetric } from './components/HistoryModal';
 import SparklineChart from './components/SparklineChart';
 import BlockPropagationChart from './components/BlockPropagationChart';
 import NodesTable from './components/NodesTable';
+import BootnodesPanel from './components/BootnodesPanel';
+import { useBootnodePolling } from './hooks/useBootnodePolling';
 
 const MAX_BINS = 40;
 const API_URL = import.meta.env.VITE_API_URL ?? '';
@@ -106,8 +109,9 @@ const App: React.FC = () => {
     (rawNodes: Node[], charts: ChartsData) => {
       const currentPinned = pinnedIdsRef.current;
       const prevMap = new Map(nodesRef.current.map((n) => [n.id, n]));
+      const sanitizedNodes = xssFilter(rawNodes) as Node[];
 
-      const initialized: Node[] = (rawNodes as Node[]).map((node) => {
+      const initialized: Node[] = sanitizedNodes.map((node) => {
         const n: Node = {
           ...node,
           history: node.history ?? Array(40).fill(-1),
@@ -156,6 +160,18 @@ const App: React.FC = () => {
     apiUrl: API_URL,
     onSnapshot: handleSnapshot,
     intervalMs: 5000,
+  });
+
+  const {
+    report: bootnodeReport,
+    loading: bootnodeLoading,
+    checking: bootnodeChecking,
+    error: bootnodeError,
+    disabled: bootnodeDisabled,
+    triggerCheck: triggerBootnodeCheck,
+  } = useBootnodePolling({
+    apiUrl: API_URL,
+    enabled: Boolean(API_URL),
   });
 
   // ─── Pin handler ─────────────────────────────────────────────────────────
@@ -333,6 +349,15 @@ const App: React.FC = () => {
             avg={blockPropagationAvg}
           />
         </div>
+
+        <BootnodesPanel
+          report={bootnodeReport}
+          loading={bootnodeLoading}
+          checking={bootnodeChecking}
+          error={bootnodeError}
+          disabled={bootnodeDisabled}
+          onCheckNow={triggerBootnodeCheck}
+        />
 
         {/* Nodes Table */}
         <NodesTable
