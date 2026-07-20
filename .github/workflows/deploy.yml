@@ -9,7 +9,7 @@ env:
   REGISTRY: docker.io
   BACKEND_IMAGE: xinfinorg/xdcstats-backend
   FRONTEND_IMAGE: xinfinorg/xdcstats-frontend
-  NAMESPACE: service
+  NAMESPACE: side-services
 
 jobs:
   build-and-deploy:
