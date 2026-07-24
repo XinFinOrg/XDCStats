@@ -4,10 +4,10 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vite --mode devnet",
+    "dev": "vite --mode \"${ENV:?ENV must be set to devnet, testnet, or mainnet}\"",
     "dev:testnet": "vite --mode testnet",
     "dev:mainnet": "vite --mode mainnet",
-    "build": "tsc && vite build --mode mainnet",
+    "build": "tsc && vite build --mode \"${ENV:?ENV must be set to devnet, testnet, or mainnet}\"",
     "build:testnet": "tsc && vite build --mode testnet",
     "build:devnet": "tsc && vite build --mode devnet",
     "preview": "vite preview",

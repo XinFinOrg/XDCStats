@@ -53,9 +53,13 @@ dev-frontend:
 ## ── Frontend dev container (npm run dev, reads .env) ─────────────────────────
 
 frontend-run: docker-build-frontend frontend-stop
+ifndef ENV
+	$(error ENV must be set to devnet, testnet, or mainnet, e.g. make frontend-run ENV=testnet)
+endif
 	docker run -d \
 		--name $(FRONTEND_CONTAINER) \
 		--restart unless-stopped \
+		-e ENV=$(ENV) \
 		-p $(FRONTEND_PORT):32001 \
 		$(FRONTEND_IMAGE):$(TAG)
 	@echo "Frontend → http://localhost:$(FRONTEND_PORT)"

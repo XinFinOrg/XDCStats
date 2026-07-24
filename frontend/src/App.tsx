@@ -22,6 +22,7 @@ import SparklineChart from './components/SparklineChart';
 import BlockPropagationChart from './components/BlockPropagationChart';
 import NodesTable from './components/NodesTable';
 import BootnodesPanel from './components/BootnodesPanel';
+import { TopNavLinks, SwitchNetworkLink } from './components/TopNavBar';
 import { useBootnodePolling } from './hooks/useBootnodePolling';
 
 const MAX_BINS = 40;
@@ -218,7 +219,7 @@ const App: React.FC = () => {
         className="bg-white sticky top-0 z-50"
         style={{ borderBottom: '1px solid #e4eaf0', boxShadow: '0 2px 10px rgba(0,0,0,0.06)' }}
       >
-        <div className="flex items-center justify-between px-6 py-3">
+        <div className="flex items-center justify-between px-6 py-3 flex-wrap">
           <div className="flex items-center gap-4">
             <span className="font-bold text-lg tracking-tight select-none" style={{ color: '#1e2a6e' }}>
               <span style={{ color: '#44a2d2' }}>XDC</span>Stats
@@ -229,8 +230,10 @@ const App: React.FC = () => {
             >
               Network Monitor
             </span>
+            <TopNavLinks />
           </div>
           <div className="flex items-center gap-5">
+            <SwitchNetworkLink />
             <div className="flex items-center gap-2">
               <span
                 className={nodesActive > 0 ? 'live-dot' : ''}

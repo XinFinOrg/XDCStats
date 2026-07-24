@@ -14,7 +14,7 @@ ENV_FILE="$REPO_ROOT/.env"
 
 # ── per-environment defaults ──────────────────────────────────────────────────
 DEVNET_API_URL="https://stats.devnet.xinfin.org/api"
-TESTNET_API_URL="http://66.151.40.157:2000"
+TESTNET_API_URL="https://stats.apothem.network"
 MAINNET_API_URL="https://stats.xinfin.network"
 
 # ── usage ─────────────────────────────────────────────────────────────────────
