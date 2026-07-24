@@ -318,6 +318,7 @@ if [ -f "$ENV_FILE" ]; then
 fi
 
 {
+    printf 'ENV=%s\n' "$ENV_NAME"
     for key in "${VARS[@]}"; do
         printf '%s=%s\n' "$key" "$(collected_val "$key")"
     done
@@ -327,6 +328,7 @@ printf "  ${GREEN}${BOLD}Saved!${NC} %s written — future runs (and plain 'dock
 
 # Export into this run's shell environment too, so docker compose picks them
 # up immediately regardless of --project-directory resolution.
+export ENV="$ENV_NAME"
 for key in "${VARS[@]}"; do
     export "$key=$(collected_val "$key")"
 done
