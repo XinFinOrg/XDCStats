@@ -15,7 +15,7 @@ export default defineConfig(({ mode }) => {
     server: {
       host: true,
       port: 32001,
-      allowedHosts: ['stats.devnet.xinfin.org'],
+      allowedHosts: true,
     },
   };
 });
