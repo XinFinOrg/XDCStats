@@ -1,11 +1,13 @@
 // Package ws implements the Primus wire protocol over gorilla/websocket.
 // XDPoSChain nodes send {"emit":["event-name", payload]} and respond to
-// {"primus::ping::": timestampMs} with {"primus::pong::": timestampMs}.
+// the plain string "primus::ping::<timestampMs>" with "primus::pong::<timestampMs>".
 package ws
 
 import (
 	"encoding/json"
 	"log"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -16,6 +18,9 @@ const (
 	pingInterval  = 30 * time.Second
 	writeDeadline = 10 * time.Second
 	readLimit     = 15 * 1024 * 1024 // 15 MB
+
+	pingPrefix = "primus::ping::"
+	pongPrefix = "primus::pong::"
 )
 
 // Conn is a thread-safe wrapper around a gorilla WebSocket connection
@@ -60,15 +65,16 @@ func (c *Conn) ReadEvent() (string, json.RawMessage, error) {
 		return "", nil, err
 	}
 
-	// Try Primus ping/pong: {"primus::ping::": timestamp} or {"primus::pong::": timestamp}
-	var pingMsg map[string]json.RawMessage
-	if json.Unmarshal(data, &pingMsg) == nil {
-		if ts, ok := pingMsg["primus::ping::"]; ok {
-			return "primus::ping::", ts, nil
+	// Try Primus ping/pong: the plain string "primus::ping::<ts>" or "primus::pong::<ts>"
+	var frame string
+	if json.Unmarshal(data, &frame) == nil {
+		if ts, ok := strings.CutPrefix(frame, pingPrefix); ok {
+			return pingPrefix, json.RawMessage(ts), nil
 		}
-		if ts, ok := pingMsg["primus::pong::"]; ok {
-			return "primus::pong::", ts, nil
+		if ts, ok := strings.CutPrefix(frame, pongPrefix); ok {
+			return pongPrefix, json.RawMessage(ts), nil
 		}
+		return "", nil, nil // unrecognised string frame
 	}
 
 	// Try emit envelope: {"emit":["event", payload]}
@@ -93,8 +99,7 @@ func (c *Conn) ReadEvent() (string, json.RawMessage, error) {
 
 // SendPong replies to a Primus ping with a matching pong.
 func (c *Conn) SendPong(ts json.RawMessage) error {
-	msg := map[string]json.RawMessage{"primus::pong::": ts}
-	data, err := json.Marshal(msg)
+	data, err := json.Marshal(pongPrefix + string(ts))
 	if err != nil {
 		return err
 	}
@@ -115,8 +120,7 @@ func (c *Conn) StartPing(done <-chan struct{}, onLatency func(ms int64)) {
 			return
 		case <-ticker.C:
 			sent := time.Now().UnixMilli()
-			msg := map[string]int64{"primus::ping::": sent}
-			data, _ := json.Marshal(msg)
+			data, _ := json.Marshal(pingPrefix + strconv.FormatInt(sent, 10))
 			c.mu.Lock()
 			c.ws.SetWriteDeadline(time.Now().Add(writeDeadline))
 			err := c.ws.WriteMessage(websocket.TextMessage, data)
