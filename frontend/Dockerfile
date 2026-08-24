@@ -3,11 +3,9 @@ WORKDIR /app
 
 COPY package.json package-lock.json* ./
 RUN npm install
+RUN npm install -g serve
 
 COPY . .
 
-ARG VITE_API_URL
-ENV VITE_API_URL=$VITE_API_URL
-
 EXPOSE 32001
-CMD ["npm", "run", "dev"]
+CMD ["sh", "-c", "npm run build && serve -s dist -l 32001"]

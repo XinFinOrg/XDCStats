@@ -89,7 +89,7 @@ func (h *APIHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				slog.Warn("ws pong before auth", "node", nodeID)
 			} else {
 				rtt := time.Now().UnixMilli() - sentMs
-				slog.Warn("ws pong received", "node", nodeID, "sentMs", sentMs, "rtt_ms", rtt)
+				slog.Info("ws pong received", "node", nodeID, "sentMs", sentMs, "rtt_ms", rtt)
 				if rtt > 0 {
 					h.nodes.UpdateLatency(nodeID, rtt)
 				}
