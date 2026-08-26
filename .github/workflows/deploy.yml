@@ -60,12 +60,12 @@ jobs:
     strategy:
       matrix:
         include:
-          - context: release
+          - context: release_net
             namespace: side-services
-            kubeconfig_secret: KUBE_CONFIG
+            kubeconfig_secret: KUBE_CONFIG_RELEASE_NET
           - context: devnet
             namespace: service
-            kubeconfig_secret: KUBE_CONFIG_DEVNET
+            kubeconfig_secret: KUBE_CONFIG_DEV_NET
     steps:
       - name: Set up kubectl
         uses: azure/setup-kubectl@v4
