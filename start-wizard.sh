@@ -142,15 +142,9 @@ default_of() {
 }
 
 # Effective current value: prefer a previously saved .env, fall back to the
-# built-in default. VITE_API_URL / BOOTNODE_NETWORK always re-derive from the
-# environment chosen this run, so switching devnet/testnet/mainnet takes effect.
+# built-in default (which for VITE_API_URL / BOOTNODE_NETWORK derives from the
+# environment chosen this run).
 current_val() {
-    case "$1" in
-        VITE_API_URL|BOOTNODE_NETWORK)
-            default_of "$1"
-            return
-            ;;
-    esac
     if [ -f "$ENV_FILE" ]; then
         local v
         v=$(read_key "$1" "$ENV_FILE")

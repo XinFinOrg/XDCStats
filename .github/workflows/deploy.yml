@@ -9,17 +9,19 @@ env:
   REGISTRY: docker.io
   BACKEND_IMAGE: xinfinorg/xdcstats-backend
   FRONTEND_IMAGE: xinfinorg/xdcstats-frontend
-  NAMESPACE: side-services
 
 jobs:
-  build-and-deploy:
+  build-and-push:
     runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
       - name: Set image tag
-        run: echo "TAG=${GITHUB_SHA::7}" >> $GITHUB_ENV
+        id: tag
+        run: echo "tag=${GITHUB_SHA::7}" >> $GITHUB_OUTPUT
 
       - name: Log in to Docker Hub
         uses: docker/login-action@v3
@@ -36,7 +38,7 @@ jobs:
           context: ./backend
           push: true
           tags: |
-            ${{ env.BACKEND_IMAGE }}:${{ env.TAG }}
+            ${{ env.BACKEND_IMAGE }}:${{ steps.tag.outputs.tag }}
             ${{ env.BACKEND_IMAGE }}:latest
           cache-from: type=gha,scope=backend
           cache-to: type=gha,mode=max,scope=backend
@@ -47,32 +49,45 @@ jobs:
           context: ./frontend
           push: true
           tags: |
-            ${{ env.FRONTEND_IMAGE }}:${{ env.TAG }}
+            ${{ env.FRONTEND_IMAGE }}:${{ steps.tag.outputs.tag }}
             ${{ env.FRONTEND_IMAGE }}:latest
           cache-from: type=gha,scope=frontend
           cache-to: type=gha,mode=max,scope=frontend
 
+  deploy:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - context: release
+            namespace: side-services
+            kubeconfig_secret: KUBE_CONFIG
+          - context: devnet
+            namespace: service
+            kubeconfig_secret: KUBE_CONFIG_DEVNET
+    steps:
       - name: Set up kubectl
         uses: azure/setup-kubectl@v4
 
-      - name: Configure kubeconfig
+      - name: Configure kubeconfig (${{ matrix.context }})
         run: |
           mkdir -p ~/.kube
-          echo "${{ secrets.KUBE_CONFIG }}" | base64 -d > ~/.kube/config
+          echo "${{ secrets[matrix.kubeconfig_secret] }}" | base64 -d > ~/.kube/config
           chmod 600 ~/.kube/config
 
-      - name: Deploy backend
+      - name: Deploy backend (${{ matrix.context }})
         run: |
           kubectl set image deployment/stats-1-backend \
-            backend=${{ env.BACKEND_IMAGE }}:${{ env.TAG }} \
-            -n ${{ env.NAMESPACE }}
+            backend=${{ env.BACKEND_IMAGE }}:${{ needs.build-and-push.outputs.tag }} \
+            -n ${{ matrix.namespace }}
           kubectl rollout status deployment/stats-1-backend \
-            -n ${{ env.NAMESPACE }} --timeout=120s
+            -n ${{ matrix.namespace }} --timeout=120s
 
-      - name: Deploy frontend
+      - name: Deploy frontend (${{ matrix.context }})
         run: |
           kubectl set image deployment/stats-1-frontend \
-            frontend=${{ env.FRONTEND_IMAGE }}:${{ env.TAG }} \
-            -n ${{ env.NAMESPACE }}
+            frontend=${{ env.FRONTEND_IMAGE }}:${{ needs.build-and-push.outputs.tag }} \
+            -n ${{ matrix.namespace }}
           kubectl rollout status deployment/stats-1-frontend \
-            -n ${{ env.NAMESPACE }} --timeout=120s
+            -n ${{ matrix.namespace }} --timeout=120s
