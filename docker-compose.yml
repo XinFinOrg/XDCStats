@@ -25,6 +25,6 @@ services:
       - "${FRONTEND_PORT:-32001}:32001"
     environment:
       ENV: ${ENV:-devnet}
-      VITE_API_URL: ${VITE_API_URL:-https://stats.devnet.xinfin.org/api}
+      VITE_API_URL: ${VITE_API_URL:-https://stats.devnet.xinfin.org}
     depends_on:
       - backend

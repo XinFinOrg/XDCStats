@@ -13,8 +13,8 @@ REPO_ROOT="$(cd "$(dirname "$0")" && pwd)"
 ENV_FILE="$REPO_ROOT/.env"
 
 # ── per-environment defaults ──────────────────────────────────────────────────
-DEVNET_API_URL="https://stats.devnet.xinfin.org/api"
-TESTNET_API_URL="https://stats.apothem.network/api"
+DEVNET_API_URL="https://stats.devnet.xinfin.org"
+TESTNET_API_URL="https://api.apothem.network"
 MAINNET_API_URL="https://stats.xinfin.network"
 
 # ── usage ─────────────────────────────────────────────────────────────────────
